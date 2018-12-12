@@ -34,6 +34,8 @@ my $snp_found = 0;
 my $no_snp_found = 0;
 my $count_SNPs_stored = 0;
 
+my %counting; # storing tallies of strain reads.
+my %strain_tallies;
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
 
 while (@ARGV){
@@ -46,7 +48,7 @@ while (@ARGV){
 
     warn "\nSummary of parameters for reStrainingOrder:\n";
     warn '='x40,"\n";
-    warn "Infile:\t\t\t$file\n";
+    warn "Infile:\t\t\t\t$file\n";
     warn "SNP annotation file:\t\t$snp_file\n";
     warn "Output directory:\t\t>$output_dir<\n";
     warn "Parent directory:\t\t>$parent_dir<\n";
@@ -121,10 +123,70 @@ while (@ARGV){
 		}
     }
 
+    #foreach my $chr (keys %snps){
+    	#foreach my $pos (keys %{$snps{$chr}}){
+    	#	warn "$chr\t$pos\t$snps{$chr}->{$pos}->{strain}\t$snps{$chr}->{$pos}->{ref}\t$snps{$chr}->{$pos}->{snp}\n"; sleep(1);
+		#}
+    #}
+
+
     process_masked_BAM_file($file);
 
     warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
+    warn "Here are the strain counts:\n";
+    foreach my $strain(keys %counting){
+    	warn "$strain\t$counting{$strain}\n";
+    }
+
+
+    warn "More detailed strain counts:\n";
+ 	foreach my $strain (keys %strain_tallies){
+    	#warn "$strain\n";
+    	my $not_covered = 0;
+    	my $total_snps = 0;
+    	my @fractions;
+    	foreach my $chr (keys %{$strain_tallies{$strain}}){
+    		foreach my $pos (keys %{$strain_tallies{$strain}->{$chr}}){
+    			$total_snps++;
+				#warn "$strain\t$chr\t$pos\n";	sleep(1);
+				#warn "Covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\nNot covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n\n";
+				if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} == 0) and ($strain_tallies{$strain}->{$chr}->{$pos}->{no} == 0) ){
+					++$not_covered;
+				}
+				else{
+					#warn()
+					# warn "REFERENCE:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n$strain:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\n\n";
+					my $fraction_strain = sprintf("%.2f",$strain_tallies{$strain}->{$chr}->{$pos}->{yes}/ ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no})*100,);
+					# warn "Percent Strain $strain: $fraction_strain\n";
+					push @fractions,$fraction_strain;
+				}
+    		}
+
+    		#warn "$strain\t$chr\n";
+    	}
+
+    	my $avg_percent = 0;
+    	foreach my $value (@fractions){
+    		$avg_percent += $value;
+    	}
+    	if (scalar@fractions == 0){
+    		$avg_percent = "NA";
+    	}
+    	else{
+    		$avg_percent /= scalar@fractions;
+    		$avg_percent = sprintf("%.1f",$avg_percent);
+    	}
+
+    	my $perc;
+    	if ($total_snps == 0){
+    		$perc = "NA";
+    	}
+    	else{
+    		$perc = sprintf("%.2f",$not_covered/$total_snps*100);
+    	}
+    	warn "Total SNPs for strain >$strain<: $total_snps\tthereof were not covered at all: $not_covered ($perc%)\taverage % strain $strain: $avg_percent%\n";
+    }
 	exit;
 
     ######################
@@ -136,28 +198,28 @@ while (@ARGV){
     # Calling the allele-specific sorting now
     my @args;
     if ($hic){
-	push @args, '--hic';
+		push @args, '--hic';
     }
     if ($samtools_path){
-	push @args, "--samtools_path $samtools_path";
+		push @args, "--samtools_path $samtools_path";
     }
     if ($paired){
-	push @args, '--paired';
+		push @args, '--paired';
     }
     unless ($bam){
-	push @args, '--sam';
+		push @args, '--sam';
     }
     if ($verbose){
-	push @args, '--verbose';
+		push @args, '--verbose';
     }
     if ($output_dir){ # not passing on empty strings
-	push @args, "--output_dir $output_dir";
+		push @args, "--output_dir $output_dir";
     }
     if ($conflict){
-	push @args, '--conflicting';
+		push @args, '--conflicting';
     }
     if ($singletons){
-	push @args, '--singletons';
+		push @args, '--singletons';
     }
 
     system ("$RealBin/tag2sort @args $outfile");
@@ -255,25 +317,25 @@ sub process_masked_BAM_file{
 	    }
 
 	    if ($n_dels == 1){
-		++$contained_N_deletion;
-		++$bizarre;
-		$XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
-		# print $_;
-	    }
+			++$contained_N_deletion;
+			++$bizarre;
+			$XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
+			# print $_;
+		}
 	    elsif($n_dels > 1){
-		++$contained_N_deletion;
-		++$multi_N_deletion;
-		++$bizarre;
-		# warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
-		# print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
-		$XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
-		# print $_;
+			++$contained_N_deletion;
+			++$multi_N_deletion;
+			++$bizarre;
+			# warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
+			# print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
+			$XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
+			# print $_;
 	    }
 	    else{ # no deletion of the N position itself
 		++$count_N_containing;
 		### Determine whether the N was a known SNP and whether we can assign an allele
-		($genome1_count,$genome2_count,$ct_unassigned) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
-
+		($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
+		# print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
 		if ($genome1_count > 0 and $genome2_count > 0){
 		    ++$bizarre;
 		    $XX_tag = 'XX:Z:CF'; #  read contained one or more SNPs for both genomes -> dodgy
@@ -284,23 +346,23 @@ sub process_masked_BAM_file{
 		}
 		elsif($genome2_count > $genome1_count){
 		    $genome2++;
-		    $XX_tag = 'XX:Z:G2'; # genome 2 specific
+		     $XX_tag = 'XX:Z:G2'; # genome 2 specific
 		}
 		elsif($genome1_count == 0 and $genome2_count == 0){
 		    # read came back without any assigned number, e.g. the SNP position contained a base different to either genome. The read is thus unassignable
 		    if ($bisulfite){
-			# for bisulfite reads this may have happened because of C>T SNPs
-			if ($ct_unassigned > 0){
-			    # we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
-			    ++$unassigned_but_ct;
-			}
-			else{
-			    ++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
-			}
+				# for bisulfite reads this may have happened because of C>T SNPs
+				if ($ct_unassigned > 0){
+				    # we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
+				    ++$unassigned_but_ct;
+				}
+				else{
+				    ++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
+				}
 		    }
 		    else{
-			++$no_snp;
-		    }
+				++$no_snp;
+			}
 		    $XX_tag = 'XX:Z:UA'; # unassignable read
 		    ++$unassigned;
 		}
@@ -492,22 +554,31 @@ sub determine_N_position{
 		else{ ## DEFAULT
 
 		    if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
-			if ($verbose) { warn "genome 1 specific!\n";}
-			++$genome1;
-		    }
-		    elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
-			if ($verbose) { warn "genome 2 specific!\n";}
-			++$genome2;
-		    }
-		    else{
-			if ($verbose) { warn "The base was different than both genome 1 or genome 2: $read_base\n";}
-			++$irrelevant;
-		    }
-		}
+				if ($verbose) { warn "genome 1 specific!\n";}
+					++$genome1;
+					$counting{'C57BL6'}++;
+					# ßprint "$snps{$chr}->{$genomic_pos}->{strain}";
+					# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
+					${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
+		   		}
+			    elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+			    	### This is when we know that this has to be a certain strain
+			    	# warn "$snps{$chr}->{$genomic_pos}->{strain}\n";
+			    	$counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
+			    	${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
+
+					if ($verbose) { warn "genome 2 specific!\n";}
+					++$genome2;
+		   		}
+		    	else{
+					if ($verbose) { warn "The base was different than both genome 1 or genome 2: $read_base\n";}
+					++$irrelevant;
+			    }
+			}
 	    }
 	    else{
-		++$no_snp_found;
-		if ($verbose) { warn "SNP was not present in the SNP list\n";}
+			++$no_snp_found;
+			if ($verbose) { warn "SNP was not present in the SNP list\n";}
 	    }
 
 	    if ($verbose) { warn "now adjusting the position for the N itself\n";}
@@ -1175,10 +1246,10 @@ sub sort_by_name_paired_end{
 sub read_snps{
 
     if ($snp_file =~ /\.gz$/){
-	open (SNP,"gunzip -c $snp_file |") or die "Failed to read from gzipped $snp_file: $!\n\n";
+		open (SNP,"gunzip -c $snp_file |") or die "Failed to read from gzipped $snp_file: $!\n\n";
     }
     else{
-	open (SNP,$snp_file) or die "Failed to read from $snp_file: $!\n\n";
+		open (SNP,$snp_file) or die "Failed to read from $snp_file: $!\n\n";
     }
 
     ### READING FROM SNP FILE
@@ -1187,17 +1258,27 @@ sub read_snps{
     sleep(1);
 
     my $snp_count = 0;
+	$counting{'C57BL6'} = 0;	# Black 6 reference genome
 
     while (<SNP>){
-	++$snp_count;
-	$_ =~ s/\r|\n//g; # removing CR and LF line endings
-	my ($chr,$pos,$diff)  = (split /\t/)[1,2,4];
-	my ($ref,$snp) = (split /\//,$diff);
-	# print "$chr\t$pos\t$ref\t$snp\n";
+		++$snp_count;
+		$_ =~ s/\r|\n//g; # removing CR and LF line endings
+		my ($strain,$chr,$pos,$diff)  = (split /\t/)[0,1,2,4];
+		my ($ref,$snp) = (split /\//,$diff);
+		# print "$chr\t$pos\t$ref\t$snp\n";
 
-	### for N-masked genomes the SNPs are stored in an. hashes
-	$snps{$chr}->{$pos}->{ref} = $ref;
-	$snps{$chr}->{$pos}->{snp} = $snp;
+		### for N-masked genomes the SNPs are stored in an. hashes
+		$snps{$chr}->{$pos}->{ref} = $ref;
+		$snps{$chr}->{$pos}->{snp} = $snp;
+		$snps{$chr}->{$pos}->{strain} = $strain;
+
+		unless (exists $counting{$strain}){
+			$counting{$strain} = 0;
+		}
+
+		$strain_tallies{$strain}->{$chr}->{$pos}->{yes} = 0;
+		$strain_tallies{$strain}->{$chr}->{$pos}->{no} = 0;
+		
     }
     warn "Stored $snp_count positions in total\n\n";
     return ($snp_count);
