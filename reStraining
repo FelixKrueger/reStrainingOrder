@@ -34,7 +34,7 @@ my ($vcf_file,$genome_folder,$nmasking,$genome_build) = process_commandline ();
 
 my %snps; # storing all filtered SNPs
 
-warn "\nSummarising reStraining - Genome Preparation - Parameters\n";
+warn "\nSummarising reStraining parameters - Genome Preparation\n";
 warn "="x50,"\n";
 
 warn "Processing SNPs from VCF file:\t\t$vcf_file\n";
@@ -294,9 +294,9 @@ sub read_snps {
 
 sub filter_relevant_SNP_calls_from_VCF{
     
-    my ($strain, $strain_index, $strain_identity) = @_;    
+  
     warn "Now reading from VCF file $vcf_file\n";
-
+	# warn "STRAIN is: $strain\n\n"; sleep(10);
     if ($vcf_file =~ /gz$/){
 	   open (IN,"gunzip -c $vcf_file |") or die "Failed to open file '$vcf_file': $!\n";
     } 
@@ -315,7 +315,8 @@ sub filter_relevant_SNP_calls_from_VCF{
     my $low_confidence = 0;
     my $same = 0;
     my $homozygous = 0;
-  
+	
+	my $unique_single_strain = 0;
   
     my $dir = "SNPs_directory";
     unless (-d $dir){
@@ -334,8 +335,7 @@ sub filter_relevant_SNP_calls_from_VCF{
     while (<IN>){
     	$_ =~ s/(\r|\n)//g; # removing end of line characters
 
-        # warn "$_\n"; sleep(1);
-    	next if ($_ =~ /^\#\#/); # filters out header information lines
+        next if ($_ =~ /^\#\#/); # filters out header information lines
     	# warn "$_\n"; sleep(1);
         if ($_ =~ /^\#CHROM/){ # Table Header
     	    #my ($name) = (split /\t/)[$strain_index];
@@ -346,7 +346,8 @@ sub filter_relevant_SNP_calls_from_VCF{
     	if ($count%1000000 ==0){
     	    warn "processed $count lines\n";
     	}
-		last if ($count == 10000);
+		# last if ($count == 10000);
+		# warn "$_\n"; sleep(1);
     	# sleep(1);
         # foreach my $index(0..$#strains){
            # next if ($index <= 8); 
@@ -364,6 +365,20 @@ sub filter_relevant_SNP_calls_from_VCF{
             warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
             last;
         }
+
+		# skipping if the reference base is not well defined in Black6
+		if ($ref =~ /[^ATCG]/){ # reference base contained any non A, C, T, G characters or more than one base
+			warn "ref was: $ref; skipping\n";
+			next;
+		}
+		
+		# skipping if the SNP is not well defined in the strain of interest
+		if ($alt =~ /[^ATCG,]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
+			warn "SNP was: $alt; skipping\n";
+			++$too_many;
+			next;
+		}
+
         my $location = join (':',$chr,$pos);
         # warn "$location\n";   
 
@@ -371,11 +386,12 @@ sub filter_relevant_SNP_calls_from_VCF{
         my $unique_snp;
         my $unique_strain;
         my $unique_index;
+		
         my $pos_fails = 0;
 
         # The first 8 fields are irrelevant: #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  
-        foreach my $index (9..$#strains){
-        	# print "$index\t$strains{$index}\t$strains[$index]\n"; sleep(1);
+		foreach my $index (9..$#strains){
+        	# print "$index\t$strains{$index}->{strain}\t\t$strains[$index]\n";
 
             # $strain is in the form: GT:GQ:DP:MQ0F:GP:PL:AN:MQ:DV:DP4:SP:SGB:PV4:FI
             my ($gt,$gq,$dp,$mq0f,$gp,$pl,$an,$mq,$dv,$dp4,$sp,$sgb,$pv4,$fi) = split/:/,$strains[$index];
@@ -394,7 +410,6 @@ sub filter_relevant_SNP_calls_from_VCF{
         	
         	### We are only looking for 1/1, 2/2 or 3/3 calls, and filter for high confidence as well
         	
-           
             # Looking at the Filter tag first
             # warn "$fi\n"; sleep(1);
             if ($fi eq 1){
@@ -406,28 +421,17 @@ sub filter_relevant_SNP_calls_from_VCF{
                 # warn "FI was $fi\n";
                 next;
             }
-            
-        	# skipping if the reference base is not well defined in Black6
-        	if ($ref =~ /[^ATCG]/){ # reference base contained any non A, C, T, G characters or more than one base
-        	    warn "ref was: $ref; skipping\n";
-        	    last;
-        	}
-        	
-        	# skipping if the SNP is not well defined in the strain of interest
-        	if ($alt =~ /[^ATCG,]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
-        	    # warn "SNP was: $alt; GT was $gt; FI was: $fi; skipping\n";
-        	    ++$too_many;
-        	    last;
-        	}
-        	
-     
+                
         	# Filtering for genotype. If the genotype is the same as the reference we will move on to the next position and/or strain
         	if ($gt eq '0/0'){
         	    ++$same;
         	    # warn "same as reference, next...\n";
         	    next;
         	}
-        	elsif ($gt eq '1/1'){
+			
+			# warn "ALT: $alt\n"; sleep(1);
+			
+        	if ($gt eq '1/1'){
         	    ++$homozygous;
         	    if ($alt =~ /[^ATCG]/){ 	 
             		# warn "homozygous alternative allele: >$alt<\n";
@@ -458,68 +462,74 @@ sub filter_relevant_SNP_calls_from_VCF{
         	    }
         	}
         	else{
-        	    # this could be positions without genotype call ./. or any form of heterozygous call. In any case we will blacklist these positions and not use them for dual genomes
+        	    # this could be positions without genotype call ./. or any form of heterozygous call. 
+				# In any case we will blacklist these positions and not use them for dual genomes
         	    # we do skip these positions but keep them on the 'blacklist' for dual genomes
         	    ++$other;
         	    #  warn "$gt\n"; 
         	    next;
         	}
 
-        	
-        	# Output example
-        	# Variation ID    Chromosome name Position on Chromosome (bp)     Strand  Allele
-            # rs2020560       10      98212004        1       A/T
-        	
+              	
             ### If we made it this far the SNP is a homozygous substitution in the current strain, and it was a high confidence call
             
-            my $SNP = join ("\t",$strains{$index}->{strain},$chr,$pos,'1',join ("\/",$ref,$alt));
-            # field 4: 1 means top strand, -1 means reverse strand
+             # field 4: 1 means top strand, -1 means reverse strand
             # warn "$SNP\n";sleep(1);
             if (defined $unique_snp){
                 # warn "SNP was already defined by a previous strain. Failing this position out...\n";
                 $pos_fails++;
+				last;
             }
             else{
-                $unique_strain = $strain;
+		
+				# Output example
+				# Variation ID    Chromosome name Position on Chromosome (bp)     Strand  Allele
+				# rs2020560       10      98212004        1       A/T
+				my $SNP = join ("\t",$strains{$index}->{strain},$chr,$pos,'1',join ("\/",$ref,$alt));
+                ++$unique_single_strain;       
+				$unique_strain = $strains{$index}->{strain};
                 $unique_snp = $SNP;
                 $unique_index = $index;
-                warn  "SNP was not present yet, storing it (for strain $strains{$index})\n";
+                # warn  "SNP was not present yet, storing it (for strain $strains{$index}->{strain})\n";
             }
 
-            #if (exists $snps{$location} ){
-             #   warn "SNP $snps{$location} position was present already\n";
-            #}
-            #else{
-             #   $snps{$location} = $SNP;
-             #   warn  "High confidence SNP for strain $strains{$index}\n";
-            #}
+            # if (exists $snps{$location} ){
+            #   warn "SNP $snps{$location} position was present already\n";
+            # }
+            # else{
+            #   $snps{$location} = $SNP;
+            #   warn  "High confidence SNP for strain $strains{$index}\n";
+            # }
         	# print {$fhs{$chr}} join ("\t",$count,$chr,$pos,'1',join ("\/",$ref,$alt),$strain),"\n";
     	}
-
-        if ($pos_fails){
-            warn "Position was a SNP in several strains. Moving on to the next....\n"; sleep(1);
+		#warn "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";	
+        
+		if ($pos_fails){
+		    # warn "Position was a SNP in several strains. Moving on to the next....\n"; sleep(1);
         }
         else{
             if (defined $unique_snp){
-                warn "Position was unique!!!! >>> $unique_snp <<<\n\n";
+				# warn "Position was unique!!!! >>> $unique_snp <<<\n";
+				++$unique_single_strain;
                 $snps{$location}->{snp} = $unique_snp;
                 $snps{$location}->{strain} = $unique_strain;
                 $strains{$unique_index}->{count}++;
             }  
         }
-		sleep(1);
+		# warn "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
     }
 
     # Writing a report file
-    my $report = "SNP_filtering_report.txt"; # $strain here may be strain 1 or strain 2
+    my $report = "SNP_filtering_report.txt";
     open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
     
     warn "\nSNP position summary for all MGP strains (based on mouse genome build $genome_build)\n";
     warn "="x77,"\n\n";
     warn "Positions read in total:\t$count\n\n";
-    warn "$homozygous\tSNP were homozygous. Of these:\n";
-    warn "$hcg_count\tSNP were homozygous and passed high confidence filters and were thus included into the all MGP strains genome\n";
-    warn "\nNot included into MGP strains genome:\n";
+    # warn "$homozygous\tSNP were homozygous. Of these:\n";
+    warn "$unique_single_strain\tSNP were homozygous in only a single strain, and were thus included into the all MGP strains genome\n";
+    
+	warn "\nNot included into MGP strains genome:\n";
     warn "$same\thad the same sequence as the reference\n";
     warn "$too_many\t\thad no clearly defined alternative base\n";
     warn "$other\t\tCalls were neither 0/0 (same as reference) or 1/1, 2/2, 3/3 (homozygous SNP)\n";
