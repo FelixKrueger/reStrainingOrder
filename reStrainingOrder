@@ -54,31 +54,31 @@ while (@ARGV){
     warn "Parent directory:\t\t>$parent_dir<\n";
     warn "Samtools path:\t\t\t$samtools_path\n";
     if ($bam){
-	warn "Output format:\t\t\tBAM (default)\n";
+		warn "Output format:\t\t\tBAM (default)\n";
     }
     else{
-	warn "Output format:\t\t\tSAM\n";
+		warn "Output format:\t\t\tSAM\n";
     }
     if ($hic){
-	warn "Input format:\t\t\tHi-C (by definition paired-end)\n";
+		warn "Input format:\t\t\tHi-C (by definition paired-end)\n";
     }
     else{
-	if ($paired){
-	    if ($bisulfite){
-		warn "Input format:\t\t\tBismark paired-end (not relevant for tagging process)\n";
-	    }
-	    else{
-		warn "Input format:\t\t\tPaired-end (not relevant for tagging process)\n";
-	    }
-	}
-	else{
-	    if ($bisulfite){
-		warn "Input format:\t\t\tBismark Single-End\n";
-	    }
-	    else{
-		warn "Input format:\t\t\tSingle-End\n";
-	    }
-	}
+		if ($paired){
+			if ($bisulfite){
+			warn "Input format:\t\t\tBismark paired-end (not relevant for tagging process)\n";
+			}
+			else{
+			warn "Input format:\t\t\tPaired-end (not relevant for tagging process)\n";
+			}
+		}
+		else{
+			if ($bisulfite){
+			warn "Input format:\t\t\tBismark Single-End\n";
+			}
+			else{
+			warn "Input format:\t\t\tSingle-End\n";
+			}
+		}
     }
     warn "\n\n";
 
@@ -141,25 +141,54 @@ while (@ARGV){
 
 
     warn "More detailed strain counts:\n";
+
+	my $threshold = 1;
+	print "Strain\tTotal unique SNPs for Strain\tcovered\tcovered well (threshold >$threshold<)\tnot covered\taverage % Strain\n";
+	
  	foreach my $strain (keys %strain_tallies){
     	#warn "$strain\n";
+
     	my $not_covered = 0;
+		my $covered = 0;
+		my $covered_well = 0;
     	my $total_snps = 0;
     	my @fractions;
     	foreach my $chr (keys %{$strain_tallies{$strain}}){
     		foreach my $pos (keys %{$strain_tallies{$strain}->{$chr}}){
     			$total_snps++;
-				#warn "$strain\t$chr\t$pos\n";	sleep(1);
+				#	warn "$strain\t$chr\t$pos\n";	sleep(1);
 				#warn "Covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\nNot covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n\n";
 				if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} == 0) and ($strain_tallies{$strain}->{$chr}->{$pos}->{no} == 0) ){
+					# positions was not covered at all
 					++$not_covered;
 				}
 				else{
 					#warn()
+					++$covered;
+					
+					if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) < $threshold ){
+						warn "Skipping this position as it is not covered well enough\n";
+						next;
+					}
+
+					++$covered_well;
+					# warn "$strain\t$chr\t$pos\n";
+					# warn "Covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\nNot covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n\n";
+				
 					# warn "REFERENCE:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n$strain:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\n\n";
-					my $fraction_strain = sprintf("%.2f",$strain_tallies{$strain}->{$chr}->{$pos}->{yes}/ ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no})*100,);
-					# warn "Percent Strain $strain: $fraction_strain\n";
+					
+					# The fraction here is actually a percentage
+					my $fraction_strain = sprintf("%.2f",$strain_tallies{$strain}->{$chr}->{$pos}->{yes}/ ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) * 100,);
+					#warn "Percent Strain $strain: $fraction_strain\n";
 					push @fractions,$fraction_strain;
+
+					# printing positions
+					for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{no}){
+						# print "$_\t$strain\t$chr\t$pos\t+\n";
+					}
+					for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{yes}){
+						# print "$_\t$strain\t$chr\t$pos\t-\n";
+					}
 				}
     		}
 
@@ -167,14 +196,18 @@ while (@ARGV){
     	}
 
     	my $avg_percent = 0;
-    	foreach my $value (@fractions){
-    		$avg_percent += $value;
-    	}
-    	if (scalar@fractions == 0){
+		# warn "Number of fraction entries: ",scalar@fractions,"\n\n";
+
+	   	if (scalar@fractions == 0){
     		$avg_percent = "NA";
     	}
     	else{
-    		$avg_percent /= scalar@fractions;
+    		foreach my $value (@fractions){
+				# warn "Adding $value\n";
+	    		$avg_percent += $value;
+    		}
+
+			$avg_percent /= scalar@fractions;
     		$avg_percent = sprintf("%.1f",$avg_percent);
     	}
 
@@ -185,7 +218,10 @@ while (@ARGV){
     	else{
     		$perc = sprintf("%.2f",$not_covered/$total_snps*100);
     	}
-    	warn "Total SNPs for strain >$strain<: $total_snps\tthereof were not covered at all: $not_covered ($perc%)\taverage % strain $strain: $avg_percent%\n";
+    	#warn "Total SNPs for strain >$strain<: $total_snps\tthereof were not covered at all: $not_covered ($perc%)\taverage % strain $strain: $avg_percent%\n";
+  		#warn "Strain\tTotal unique SNPs for Strain\tcovered\tcovered well (threshold >$threshold<)\tnot covered\taverage % strain Strain\n";
+		print "$strain\t$total_snps\t$covered\t$covered_well\t$not_covered\t$avg_percent\n";
+    
     }
 	exit;
 
@@ -393,15 +429,15 @@ sub process_masked_BAM_file{
 
     my ($perc_no_snp,$perc_genome1,$perc_genome2,$perc_bizarre,$perc_unassigned,$perc_unmapped);
     if ($count == 0){
-	$perc_unassigned = $perc_no_snp = $perc_genome1 = $perc_genome2 = $perc_bizarre = $perc_unmapped = 'N/A';
+		$perc_unassigned = $perc_no_snp = $perc_genome1 = $perc_genome2 = $perc_bizarre = $perc_unmapped = 'N/A';
     }
     else{
-	$perc_unassigned = sprintf ("%.2f",$unassigned*100/$count);
-	$perc_no_snp     = sprintf ("%.2f",$no_snp*100/$count);
-	$perc_genome1    = sprintf ("%.2f",$genome1*100/$count);
-	$perc_genome2    = sprintf ("%.2f",$genome2*100/$count);
-	$perc_bizarre    = sprintf ("%.2f",$bizarre*100/$count);
-	$perc_unmapped   = sprintf ("%.2f",$unmapped*100/$count);
+		$perc_unassigned = sprintf ("%.2f",$unassigned*100/$count);
+		$perc_no_snp     = sprintf ("%.2f",$no_snp*100/$count);
+		$perc_genome1    = sprintf ("%.2f",$genome1*100/$count);
+		$perc_genome2    = sprintf ("%.2f",$genome2*100/$count);
+		$perc_bizarre    = sprintf ("%.2f",$bizarre*100/$count);
+		$perc_unmapped   = sprintf ("%.2f",$unmapped*100/$count);
     }
 
     warn "\nAllele-tagging report\n",'='x21,"\n";
@@ -499,108 +535,114 @@ sub determine_N_position{
 
     if (scalar @ops == 1 and $ops[0] eq 'M'){
 
-	if ($verbose){ warn "Read is a single contiguous match: $cigar\n"; sleep(1);}
-	# adjusting the read mapping position the SNP position
+		if ($verbose){ warn "Read is a single contiguous match: $cigar\n"; sleep(1);}
+		# adjusting the read mapping position the SNP position
 
-	if ($verbose){
-	    warn "MD-tag: $md_tag\n";
-	    print join ("\t",@ns),"\n";
-	}
-
-	die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
-	my $pos;
-
-	foreach my $index (0..($#ns-1)){ # the last index of @ns is the number of matching strings after the last N, so is not relevant
-
-	    if ($ns[$index] =~/\D/){ # Element is a Non-Digit
-
-		if ($ns[$index] =~/\W/){
-		    if ($verbose){ warn "Element contains a Non-Word character: $ns[$index]\n~~~~~~~~!!!\n"};
+		if ($verbose){
+			warn "MD-tag: $md_tag\n";
+			print join ("\t",@ns),"\n";
 		}
 
-		if ($verbose){ warn "element contains a Non-DIGIT: $ns[$index]\n"};
-		my @array = split /[ATCG]/,$ns[$index];
-		if ($verbose){ warn "Elements in the array: ",scalar @array,"\n"};
+		die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
+		my $pos;
 
-		foreach my $element(@array){
-		    if ($verbose){ warn "Adding $element to pos\n"};
-		    $pos += $element;
-		    if ($verbose){ warn "pos right now: $pos\n"};
-		}
-		if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n"};
-		$pos += (scalar @array) - 1;
-		if ($verbose){ warn "pos right now: $pos\n\n"; sleep(1)};
-	    }
-	    else{ # element is a digit, so we can just add it to the position
-		if ($verbose){ warn "element is $ns[$index]\n"};
-		$pos += $ns[$index];
-		if ($verbose){ warn "Start: $start\tpos: $pos\n"; sleep(1);};
-	    }
+		foreach my $index (0..($#ns-1)){ # the last index of @ns is the number of matching strings after the last N, so is not relevant
 
-	    my $genomic_pos = $pos + $start;
+			if ($ns[$index] =~/\D/){ # Element is a Non-Digit
 
-	    ### seeing if the SNP is present in the SNP position list
-	    if (exists $snps{$chr}->{$genomic_pos}){
-		++$snp_found;
-
-		if ($verbose) { warn "SNP was present: ref: $snps{$chr}->{$genomic_pos}->{ref}\tsnp: $snps{$chr}->{$genomic_pos}->{snp}\n";}
-		if ($verbose){ warn "pos: $pos\n$sequence\n";}
-		my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
-		if ($verbose) { warn "base in read was: $read_base\n";}
-
-		if ($bisulfite){
-		    ($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
-		}
-		else{ ## DEFAULT
-
-		    if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
-				if ($verbose) { warn "genome 1 specific!\n";}
-					++$genome1;
-					$counting{'C57BL6'}++;
-					# ßprint "$snps{$chr}->{$genomic_pos}->{strain}";
-					# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
-					${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
-		   		}
-			    elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
-			    	### This is when we know that this has to be a certain strain
-			    	# warn "$snps{$chr}->{$genomic_pos}->{strain}\n";
-			    	$counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
-			    	${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
-
-					if ($verbose) { warn "genome 2 specific!\n";}
-					++$genome2;
-		   		}
-		    	else{
-					if ($verbose) { warn "The base was different than both genome 1 or genome 2: $read_base\n";}
-					++$irrelevant;
-			    }
+			if ($ns[$index] =~/\W/){
+				if ($verbose){ warn "Element contains a Non-Word character: $ns[$index]\n~~~~~~~~!!!\n"};
 			}
-	    }
-	    else{
-			++$no_snp_found;
-			if ($verbose) { warn "SNP was not present in the SNP list\n";}
-	    }
 
-	    if ($verbose) { warn "now adjusting the position for the N itself\n";}
-	    $pos += 1; # adjusting position for the N itself. irrelevant if this is the last element of the array
-	    if ($verbose) { warn "pos right now: $pos\n";}
-	}
+			if ($verbose){ warn "element contains a Non-DIGIT: $ns[$index]\n"};
+			my @array = split /[ATCG]/,$ns[$index];
+			if ($verbose){ warn "Elements in the array: ",scalar @array,"\n"};
 
-	if ($verbose) { warn "~~~~~~~~~~~~~~~~~~~~\n\n\n\n";}
+			foreach my $element(@array){
+				if ($verbose){ warn "Adding $element to pos\n"};
+				$pos += $element;
+				if ($verbose){ warn "pos right now: $pos\n"};
+			}
+			if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n"};
+				$pos += (scalar @array) - 1;
+				if ($verbose){ warn "pos right now: $pos\n\n"; sleep(1)};
+			}
+			else{ # element is a digit, so we can just add it to the position
+				if ($verbose){ warn "element is $ns[$index]\n"};
+				$pos += $ns[$index];
+				if ($verbose){ warn "Start: $start\tpos: $pos\n"; sleep(1);};
+			}
+
+			my $genomic_pos = $pos + $start;
+
+			### seeing if the SNP is present in the SNP position list
+			if (exists $snps{$chr}->{$genomic_pos}){
+			++$snp_found;
+
+			if ($verbose) { warn "SNP was present: ref: $snps{$chr}->{$genomic_pos}->{ref}\tsnp: $snps{$chr}->{$genomic_pos}->{snp}\n";}
+			if ($verbose){ warn "pos: $pos\n$sequence\n";}
+			my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
+			if ($verbose) { warn "base in read was: $read_base\n";}
+
+			if ($bisulfite){
+				warn "Now doing a bisulfite tally\n";
+				($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
+
+			}
+				else{ ## DEFAULT
+					#	print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
+						
+					if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
+						if ($verbose) { warn "genome 1 specific SNP!\n";}
+						++$genome1;
+						$counting{'C57BL6'}++;
+						# print "$snps{$chr}->{$genomic_pos}->{strain}";
+						# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
+						${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
+					}
+					elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+						if ($verbose) { warn "genome 2 specific SNP!\n";}
+						### This is when we know that this has to be a certain strain
+						# warn "$snps{$chr}->{$genomic_pos}->{strain}\nWhat does this incrementer do?: >>$counting{$snps{$chr}->{$genomic_pos}->{strain}}<<\n\n";
+						$counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
+						${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
+					
+						++$genome2;
+					}
+					else{
+						if ($verbose) { warn "The base was different than both genome 1 or genome 2: $read_base\n";}
+						++$irrelevant;
+					}
+				}
+			}
+			else{
+				++$no_snp_found;
+				if ($verbose) { warn "SNP was not present in the SNP list\n";}
+			}
+
+			if ($verbose) { warn "now adjusting the position for the N itself\n";}
+			$pos += 1; # adjusting position for the N itself. irrelevant if this is the last element of the array
+			if ($verbose) { warn "pos right now: $pos\n";}
+		}
+
+		if ($verbose) { warn "~~~~~~~~~~~~~~~~~~~~\n\n\n\n";}
 
     }
     else{ # CIGAR string is not a simple match
-	if ($verbose){
-	    warn "CIGAR string is not a simple match:\n";
-	    print "MD-tag: $md_tag\tIndividual elements are:\n";
-	    print join ("\t",@ns),"\n";
-	}
+		if ($verbose){
+			warn "CIGAR string is not a simple match:\n";
+			print "MD-tag: $md_tag\tIndividual elements are:\n";
+			print join ("\t",@ns),"\n";
+		}
+		
+		# warn "For the time being, only looking at perfect matches\n";
+ 		return ($genome1,$genome2,$ct_unassigned);
 
-	die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
-	my $pos = 0;
-	my %insertions_accounted_for;
+		die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
+		my $pos = 0;
+		my %insertions_accounted_for;
 
-	### STEP I: determining the position of the N(s) in the read
+		### STEP I: determining the position of the N(s) in the read
 
 	foreach my $index (0..($#ns-1)){ # the last index of @ns is the number of matching strings after the last N, so is not relevant
 
@@ -1258,7 +1300,7 @@ sub read_snps{
     sleep(1);
 
     my $snp_count = 0;
-	$counting{'C57BL6'} = 0;	# Black 6 reference genome
+	$counting{'C57BL6'} = 0;	# Initialising Black 6 reference genome
 
     while (<SNP>){
 		++$snp_count;
