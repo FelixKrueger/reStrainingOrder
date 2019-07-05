@@ -27,6 +27,7 @@ use Cwd;
 ## Reading in a BAM or SAM file
 my $pipeline_version = '0.1.0_dev';
 my $parent_dir = getcwd;
+my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$hic,$conflict,$output_dir,$singletons,$bisulfite) = process_commandline ();
 my %snps; # storing SNP position and sequence information for all SNPs
 
@@ -135,7 +136,7 @@ while (@ARGV){
     warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
     warn "Here are the strain counts:\n";
-    foreach my $strain(keys %counting){
+    foreach my $strain(sort {$a cmp $b} keys %counting){
     	warn "$strain\t$counting{$strain}\n";
     }
 
@@ -145,7 +146,7 @@ while (@ARGV){
 	my $threshold = 1;
 	print "Strain\tTotal unique SNPs for Strain\tcovered\tcovered well (threshold >$threshold<)\tnot covered\taverage % Strain\n";
 	
- 	foreach my $strain (keys %strain_tallies){
+ 	foreach my $strain (sort {$a cmp $b} keys %strain_tallies){
     	#warn "$strain\n";
 
     	my $not_covered = 0;
@@ -1301,30 +1302,50 @@ sub read_snps{
 
     my $snp_count = 0;
 	$counting{'C57BL6'} = 0;	# Initialising Black 6 reference genome
-
-    while (<SNP>){
+	
+	$_ = <SNP>;
+	# print $_; sleep(1);
+	
+	my @headers  = (split /\t/);
+	@strains = @headers[4..$#headers];
+	
+	while (<SNP>){
 		++$snp_count;
 		$_ =~ s/\r|\n//g; # removing CR and LF line endings
-		my ($strain,$chr,$pos,$diff)  = (split /\t/)[0,1,2,4];
-		my ($ref,$snp) = (split /\//,$diff);
-		# print "$chr\t$pos\t$ref\t$snp\n";
+		my ($chr,$pos,$ref,$snp,@calls)  = (split /\t/);
+		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
+		last if ($snp_count == 1000);
+	
 		### for N-masked genomes the SNPs are stored in an. hashes
 		$snps{$chr}->{$pos}->{ref} = $ref;
 		$snps{$chr}->{$pos}->{snp} = $snp;
-		$snps{$chr}->{$pos}->{strain} = $strain;
+		@{$snps{$chr}->{$pos}->{calls}} = @calls;
+		# print "@calls\n";
+		#unless (exists $counting{$strain}){
+		#	$counting{$strain} = 0;
+		#}
 
-		unless (exists $counting{$strain}){
-			$counting{$strain} = 0;
-		}
-
-		$strain_tallies{$strain}->{$chr}->{$pos}->{yes} = 0;
-		$strain_tallies{$strain}->{$chr}->{$pos}->{no} = 0;
+		#$strain_tallies{$strain}->{$chr}->{$pos}->{yes} = 0;
+		#$strain_tallies{$strain}->{$chr}->{$pos}->{no} = 0;
 		
     }
+
     warn "Stored $snp_count positions in total\n\n";
+	# like this we can move through  the file
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+			foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+				warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+			}
+		}		
+	}
+
+
     return ($snp_count);
 
+
+	
 }
 
 sub read_snps_bisulfite{
