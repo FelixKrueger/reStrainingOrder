@@ -259,7 +259,6 @@ sub read_snps {
 	    chomp;
 	    # warn "$_\n"; sleep(1);
 	    next unless ($_);
-	    my ($ref_allele,$snp_allele);
 	    my (undef,$pos,$ref_allele,$snp_allele) = split(/\t/);
 	    # warn  "$pos , $ref_allele , $snp_allele\n"; sleep(1);
     	push @snps,[$pos,$ref_allele,$snp_allele];
@@ -294,6 +293,7 @@ sub filter_relevant_SNP_calls_from_VCF{
     open (THEMATRIX,'>',$matrix_file) or die "Failed to write to file '$matrix_file': $!\n";
 
     print THEMATRIX join ("\t","Chromosome","Position","REF","ALT");
+    print THEMATRIX "\tBlack6";
     foreach my $index (sort {$a <=> $b} keys %strains){
         # warn "$index\t$strains{$index}->{strain}\n";
         print THEMATRIX "\t$strains{$index}->{strain}";
@@ -303,7 +303,9 @@ sub filter_relevant_SNP_calls_from_VCF{
 
     my %all_SNPs; # storing filtered SNPs
     my $count = 0;
-
+    my $matrix_count = 0;
+    my $positions_discarded = 0;
+     
     my $positions_skipped = 0;
     my %fhs;
     
@@ -381,6 +383,7 @@ sub filter_relevant_SNP_calls_from_VCF{
         # Rather than looping through all of the strains to find positions that are unique to one strain or another
         # (the first method), we are generating a matrix of all possible SNPs for currently Chr 1 for all strains
         my @straincalls;
+        push @straincalls, 0; # This is for Black 6, which by definition has calls of 0
 
         # The first 8 fields are irrelevant: #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  
 		foreach my $index (0..$#strains){
@@ -491,35 +494,53 @@ sub filter_relevant_SNP_calls_from_VCF{
             # }
         	# print {$fhs{$chr}} join ("\t",$count,$chr,$pos,'1',join ("\/",$ref,$alt),$strain),"\n";
     	}
-        
+
+        # Ensure that at least one strain had a high confidence SNP call
+        my $should_stay = 0;
+        foreach my $call(@straincalls){
+            # warn "$call"; 
+            if ($call eq 1){
+                ++$should_stay;
+                last;
+            }
+        }
+        # sleep(1);
         # Now that we have processed all strains we can print this position to THE MATRIX
-        my $snp = join ("\t",$chr,$pos,$ref,$alt,@straincalls);
-	    print THEMATRIX "$snp\n";	
+        if ($should_stay){  
+            my $snp = join ("\t",$chr,$pos,$ref,$alt,@straincalls);
+	        print THEMATRIX "$snp\n";	
 
-       
-
-        my $location = join (":",$chr,$pos);      
-        $snps{$location}->{snp} = $snp;
-        print {$fhs{$chr}} "$snps{$location}->{snp}\n"; # also writing into the SNP folder
+            my $location = join (":",$chr,$pos);      
+            $snps{$location}->{snp} = $snp;
+            print {$fhs{$chr}} "$snps{$location}->{snp}\n"; # also writing into the SNP folder
+            ++$matrix_count;
+        }
+        else{
+            ++$positions_discarded;
+        }
         # $snps{$location}->{strain} = $unique_strain;
         # $strains{$unique_index}->{count}++;
         # warn "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
     }
 
     # Writing a report file
-    my $report = "SNP_filtering_report.txt";
+    my $report = "reStrainingOrder_SNP_filtering_report.txt";
     open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
     
     warn "\nSNP position summary for all MGP strains (based on mouse genome build $genome_build)\n";
     warn "="x77,"\n\n";
     warn "Positions read in total:\t$count\n";
-    warn "Positions skipped because the REF or ALT bases were not well defined:\t$positions_skipped\n\n";
+    warn "Positions skipped because the REF/ALT bases were not well defined:\t$positions_skipped\n";
+    warn "Positions discarded as no strain had a high confidence call:\t$positions_discarded\n\n";
+    warn "Positions printed to THE MATRIX in total:\t$matrix_count\n";
     # warn "$homozygous\tSNP were homozygous. Of these:\n";
     	
-    print REPORT "SNP position summary for all MGP strains(based on mouse genome build $genome_build)\n";
+    print REPORT "SNP position summary for all MGP strains (based on mouse genome build $genome_build)\n";
     print REPORT "="x75,"\n\n";
     print REPORT "Positions read in total:\t$count\n";    
-    print REPORT "Positions skipped because the REF or ALT bases were not well defined:\t$positions_skipped\n\n";
+    print REPORT "Positions skipped because the REF/ALT bases were not well defined:\t$positions_skipped\n";
+    print REPORT "Positions discarded as no strain had a high confidence call:\t$positions_discarded\n\n";
+    print REPORT "Positions printed to THE MATRIX in total:\t$matrix_count\n";
     
     close REPORT or warn "Failed to close filehandle REPORT\n";
 
