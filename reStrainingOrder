@@ -22,7 +22,7 @@ use Cwd;
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-my $stopat = 1000000;
+my $stopat = 100000;
 
 ## Reading in a BAM or SAM file
 my $pipeline_version = '0.1.0_dev';
@@ -144,7 +144,11 @@ while (@ARGV){
 	warn "Now we can cycle through all positions and produce whatever we need\n";
 	foreach my $chr(keys %snps){
 		foreach my $pos(keys %{$snps{$chr}} ){
+
+			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+
 			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT}){
+				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
 				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
 					
 					# Number of different positions that were covered by any reads at all
@@ -189,7 +193,7 @@ while (@ARGV){
 				 $processed++;
 				 # warn "~~~~~\n";
 				 #sleep(1);
-				 # last if ($processed == 1000);
+				 #last if ($processed == 1000);
 			}
 			else{
 				# warn "Position was not covered at all\n";		
@@ -201,7 +205,7 @@ while (@ARGV){
     warn "More detailed strain counts:\n";
 
 	my $threshold = 1;
-	print "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\n";
+	print "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\t% agreement\n";
 	# $strain_tallies{$strains[$index]}->{positions_covered}++;
  	foreach my $strain (sort {$a cmp $b} keys %strain_tallies){
 
@@ -211,7 +215,9 @@ while (@ARGV){
 		unless (defined $strain_tallies{$strain}->{disagree}){
 			$strain_tallies{$strain}->{disagree} = 0;
 		}
-    	print "$strain\t$strain_tallies{$strain}->{positions_covered}\t$strain_tallies{$strain}->{agree}\t$strain_tallies{$strain}->{disagree}\n";
+		my $percent_agreeing = sprintf("%.2f",$strain_tallies{$strain}->{agree}/($strain_tallies{$strain}->{agree} + $strain_tallies{$strain}->{disagree}) * 100 );
+
+    	print "$strain\t$strain_tallies{$strain}->{positions_covered}\t$strain_tallies{$strain}->{agree}\t$strain_tallies{$strain}->{disagree}\t$percent_agreeing\n";
 
     	my $not_covered = 0;
 		my $covered = 0;
