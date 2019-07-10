@@ -22,7 +22,7 @@ use Cwd;
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
+my $stopat = 1000000;
 
 ## Reading in a BAM or SAM file
 my $pipeline_version = '0.1.0_dev';
@@ -140,61 +140,125 @@ while (@ARGV){
     	warn "$strain\t$counting{$strain}\n";
     }
 
+	my $processed = 0;
+	warn "Now we can cycle through all positions and produce whatever we need\n";
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT}){
+				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+					
+					# Number of different positions that were covered by any reads at all
+					$strain_tallies{$strains[$index]}->{positions_covered}++;
+					#$strain_tallies{'Black6'}->{positions_covered}++;
+					# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+					# warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+					#warn "Pos: $pos\tGenotype call was: $snps{$chr}->{$pos}->{calls}[$index]\tStrain: $strains[$index]\n";
+					if ($snps{$chr}->{$pos}->{calls}[$index] == 0){
+						
+
+						# warn "Sequence looked like the reference\n";
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							# warn "Adding $snps{$chr}->{$pos}->{REF} to AGREE\n";
+							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{REF};
+							# Black 6 has by definition a GT of 0
+							#$strain_tallies{'Black6'}->{agree} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							# warn "Adding $snps{$chr}->{$pos}->{ALT} to DISAGREE\n";
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{ALT};
+							# Black 6 has by definition a GT of 0
+							#$strain_tallies{'Black6'}->{disagree} += $snps{$chr}->{$pos}->{ALT};
+						}						
+					}
+					elsif($snps{$chr}->{$pos}->{calls}[$index] == 1){
+						# warn "Sequence looked like the ALT base\n";
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							# warn "Adding $snps{$chr}->{$pos}->{REF} to DISAGREE\n";
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							# warn "Adding $snps{$chr}->{$pos}->{ALT} to AGREE\n";
+							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{ALT};
+						}
+					}
+					else{
+						die "This should never happen! line 174\n";						
+					}
+					# sleep(1);
+				}
+				 $processed++;
+				 # warn "~~~~~\n";
+				 #sleep(1);
+				 # last if ($processed == 1000);
+			}
+			else{
+				# warn "Position was not covered at all\n";		
+			}	
+		}		
+	}
+
 
     warn "More detailed strain counts:\n";
 
 	my $threshold = 1;
-	print "Strain\tTotal unique SNPs for Strain\tcovered\tcovered well (threshold >$threshold<)\tnot covered\taverage % Strain\n";
-	
+	print "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\n";
+	# $strain_tallies{$strains[$index]}->{positions_covered}++;
  	foreach my $strain (sort {$a cmp $b} keys %strain_tallies){
-    	#warn "$strain\n";
+
+		unless (defined $strain_tallies{$strain}->{agree}){
+			$strain_tallies{$strain}->{agree} = 0;
+		}
+		unless (defined $strain_tallies{$strain}->{disagree}){
+			$strain_tallies{$strain}->{disagree} = 0;
+		}
+    	print "$strain\t$strain_tallies{$strain}->{positions_covered}\t$strain_tallies{$strain}->{agree}\t$strain_tallies{$strain}->{disagree}\n";
 
     	my $not_covered = 0;
 		my $covered = 0;
 		my $covered_well = 0;
     	my $total_snps = 0;
     	my @fractions;
-    	foreach my $chr (keys %{$strain_tallies{$strain}}){
-    		foreach my $pos (keys %{$strain_tallies{$strain}->{$chr}}){
-    			$total_snps++;
-				#	warn "$strain\t$chr\t$pos\n";	sleep(1);
+    	#foreach my $chr (keys %{$strain_tallies{$strain}}){
+    		#foreach my $pos (keys %{$strain_tallies{$strain}->{$chr}}){
+    		#	$total_snps++;
+			#	warn "$strain\t$chr\t$pos\n";	sleep(1);
 				#warn "Covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\nNot covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n\n";
-				if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} == 0) and ($strain_tallies{$strain}->{$chr}->{$pos}->{no} == 0) ){
+				#if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} == 0) and ($strain_tallies{$strain}->{$chr}->{$pos}->{no} == 0) ){
 					# positions was not covered at all
-					++$not_covered;
-				}
-				else{
+				#	++$not_covered;
+				#}
+				#e#lse{
 					#warn()
-					++$covered;
+				#	++$covered;
 					
-					if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) < $threshold ){
-						warn "Skipping this position as it is not covered well enough\n";
-						next;
-					}
-
-					++$covered_well;
+				#	if ( ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) < $threshold ){
+				#		warn "Skipping this position as it is not covered well enough\n";
+				#		next;
+				#	}
+#
+#					++$covered_well;
 					# warn "$strain\t$chr\t$pos\n";
 					# warn "Covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\nNot covered:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n\n";
 				
 					# warn "REFERENCE:\t$strain_tallies{$strain}->{$chr}->{$pos}->{no}\n$strain:\t$strain_tallies{$strain}->{$chr}->{$pos}->{yes}\n\n";
 					
 					# The fraction here is actually a percentage
-					my $fraction_strain = sprintf("%.2f",$strain_tallies{$strain}->{$chr}->{$pos}->{yes}/ ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) * 100,);
+				#	my $fraction_strain = sprintf("%.2f",$strain_tallies{$strain}->{$chr}->{$pos}->{yes}/ ($strain_tallies{$strain}->{$chr}->{$pos}->{yes} + $strain_tallies{$strain}->{$chr}->{$pos}->{no}) * 100,);
 					#warn "Percent Strain $strain: $fraction_strain\n";
-					push @fractions,$fraction_strain;
+				#	push @fractions,$fraction_strain;
 
 					# printing positions
-					for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{no}){
+				#	for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{no}){
 						# print "$_\t$strain\t$chr\t$pos\t+\n";
-					}
-					for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{yes}){
-						# print "$_\t$strain\t$chr\t$pos\t-\n";
-					}
-				}
-    		}
+				#	}
+					#for (1..$strain_tallies{$strain}->{$chr}->{$pos}->{yes}){
+				#		# print "$_\t$strain\t$chr\t$pos\t-\n";
+				#	}
+				#}
+    		#}
 
     		#warn "$strain\t$chr\n";
-    	}
+    	#}
 
     	my $avg_percent = 0;
 		# warn "Number of fraction entries: ",scalar@fractions,"\n\n";
@@ -221,44 +285,10 @@ while (@ARGV){
     	}
     	#warn "Total SNPs for strain >$strain<: $total_snps\tthereof were not covered at all: $not_covered ($perc%)\taverage % strain $strain: $avg_percent%\n";
   		#warn "Strain\tTotal unique SNPs for Strain\tcovered\tcovered well (threshold >$threshold<)\tnot covered\taverage % strain Strain\n";
-		print "$strain\t$total_snps\t$covered\t$covered_well\t$not_covered\t$avg_percent\n";
+		# reprint "$strain\t$total_snps\t$covered\t$covered_well\t$not_covered\t$avg_percent\n";
     
     }
 
-	warn "Now we can cycle through all positions and produce whatever we need\n";
-	foreach my $chr(keys %snps){
-		foreach my $pos(keys %{$snps{$chr}} ){
-			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT}){
-				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
-					# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-					# warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-					if ($snps{$chr}->{$pos}->{calls}[$index] == 0){
-						warn "Sequence looked like the reference\n";
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{ALT};
-						}						
-					}
-					elsif($snps{$chr}->{$pos}->{calls}[$index] == 1){
-						warn "Sequence looked like the ALT base\n";
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{ALT};
-						}
-					}
-					else{
-						die "This should never happen! 242\n";						
-					}
-					sleep(1);
-				}
-				warn "~~~~~\n";
-			}	
-		}		
-	}
 
 	exit;
 
@@ -1272,7 +1302,7 @@ sub score_bisulfite_SNPs{
 	    }
 	}
 	else{
-	    die "Unable to identify read alignment strand\n";
+	    die "Unable to identify read alignment gstrand\n";
 	}
     }
 
@@ -1364,7 +1394,7 @@ sub read_snps{
 		my ($chr,$pos,$ref,$snp,@calls)  = (split /\t/);
 		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
-		# last if ($snp_count == 1000);
+		last if ($snp_count == $stopat);
 	
 		### for N-masked genomes the SNPs are stored in an. hashes
 		$snps{$chr}->{$pos}->{ref} = $ref;
