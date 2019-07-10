@@ -224,6 +224,42 @@ while (@ARGV){
 		print "$strain\t$total_snps\t$covered\t$covered_well\t$not_covered\t$avg_percent\n";
     
     }
+
+	warn "Now we can cycle through all positions and produce whatever we need\n";
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT}){
+				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+					# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+					# warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+					if ($snps{$chr}->{$pos}->{calls}[$index] == 0){
+						warn "Sequence looked like the reference\n";
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{ALT};
+						}						
+					}
+					elsif($snps{$chr}->{$pos}->{calls}[$index] == 1){
+						warn "Sequence looked like the ALT base\n";
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{ALT};
+						}
+					}
+					else{
+						die "This should never happen! 242\n";						
+					}
+					sleep(1);
+				}
+				warn "~~~~~\n";
+			}	
+		}		
+	}
+
 	exit;
 
     ######################
@@ -426,6 +462,8 @@ sub process_masked_BAM_file{
 
     }
 
+
+
     ### Printing Summary reports of the stats on a per-read basis
 
     my ($perc_no_snp,$perc_genome1,$perc_genome2,$perc_bizarre,$perc_unassigned,$perc_unmapped);
@@ -551,20 +589,20 @@ sub determine_N_position{
 
 			if ($ns[$index] =~/\D/){ # Element is a Non-Digit
 
-			if ($ns[$index] =~/\W/){
-				if ($verbose){ warn "Element contains a Non-Word character: $ns[$index]\n~~~~~~~~!!!\n"};
-			}
+				if ($ns[$index] =~/\W/){
+					if ($verbose){ warn "Element contains a Non-Word character: $ns[$index]\n~~~~~~~~!!!\n"};
+				}
 
-			if ($verbose){ warn "element contains a Non-DIGIT: $ns[$index]\n"};
-			my @array = split /[ATCG]/,$ns[$index];
-			if ($verbose){ warn "Elements in the array: ",scalar @array,"\n"};
+				if ($verbose){ warn "element contains a Non-DIGIT: $ns[$index]\n"};
+				my @array = split /[ATCG]/,$ns[$index];
+				if ($verbose){ warn "Elements in the array: ",scalar @array,"\n"};
 
-			foreach my $element(@array){
-				if ($verbose){ warn "Adding $element to pos\n"};
-				$pos += $element;
-				if ($verbose){ warn "pos right now: $pos\n"};
-			}
-			if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n"};
+				foreach my $element(@array){
+					if ($verbose){ warn "Adding $element to pos\n"};
+					$pos += $element;
+					if ($verbose){ warn "pos right now: $pos\n"};
+				}
+				if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n"};
 				$pos += (scalar @array) - 1;
 				if ($verbose){ warn "pos right now: $pos\n\n"; sleep(1)};
 			}
@@ -575,43 +613,53 @@ sub determine_N_position{
 			}
 
 			my $genomic_pos = $pos + $start;
-
+			# warn "Testing to see if the SNP existed\n";
 			### seeing if the SNP is present in the SNP position list
 			if (exists $snps{$chr}->{$genomic_pos}){
-			++$snp_found;
+				++$snp_found;
+				# warn "SNP existed!\n";sleep(1);
+				if ($verbose) { warn "SNP was present: ref: $snps{$chr}->{$genomic_pos}->{ref}\tsnp: $snps{$chr}->{$genomic_pos}->{snp}\n";}
+				if ($verbose){ warn "pos: $pos\n$sequence\n";}
+				my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
+				if ($verbose) { warn "base in read was: $read_base\n";}
 
-			if ($verbose) { warn "SNP was present: ref: $snps{$chr}->{$genomic_pos}->{ref}\tsnp: $snps{$chr}->{$genomic_pos}->{snp}\n";}
-			if ($verbose){ warn "pos: $pos\n$sequence\n";}
-			my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
-			if ($verbose) { warn "base in read was: $read_base\n";}
-
-			if ($bisulfite){
-				warn "Now doing a bisulfite tally\n";
-				($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
-
-			}
+				if ($bisulfite){
+					warn "Now doing a bisulfite tally\n";
+					($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
+				}
 				else{ ## DEFAULT
-					#	print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
+
+					# like this we can move through  the file
+					#foreach my $chr(keys %snps){
+					#	foreach my $pos(keys %{$snps{$chr}} ){
+					#		foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+								# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+					#		}
+							# warn "~~~~~\n";
+					#	}		
+					#	}
+					# print "CHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
 						
 					if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
 						if ($verbose) { warn "genome 1 specific SNP!\n";}
 						++$genome1;
-						$counting{'C57BL6'}++;
+						$snps{$chr}->{$genomic_pos}->{REF}++;
+						# $counting{'C57BL6'}++;
 						# print "$snps{$chr}->{$genomic_pos}->{strain}";
 						# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
-						${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
+						# ${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
 					}
 					elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
 						if ($verbose) { warn "genome 2 specific SNP!\n";}
 						### This is when we know that this has to be a certain strain
 						# warn "$snps{$chr}->{$genomic_pos}->{strain}\nWhat does this incrementer do?: >>$counting{$snps{$chr}->{$genomic_pos}->{strain}}<<\n\n";
-						$counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
-						${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
-					
+						# $counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
+						$snps{$chr}->{$genomic_pos}->{ALT}++;
+						#${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
 						++$genome2;
 					}
 					else{
-						if ($verbose) { warn "The base was different than both genome 1 or genome 2: $read_base\n";}
+						if ($verbose) { warn "The base was different to both genome 1 or genome 2: $read_base\n";}
 						++$irrelevant;
 					}
 				}
@@ -1298,24 +1346,25 @@ sub read_snps{
     ### READING FROM SNP FILE
 
     warn "Storing SNP positions provided in '$snp_file'\n";
-    sleep(1);
+    # sleep(1);
 
     my $snp_count = 0;
 	$counting{'C57BL6'} = 0;	# Initialising Black 6 reference genome
 	
+	# processing header line
 	$_ = <SNP>;
-	# print $_; sleep(1);
-	
+	chomp;
 	my @headers  = (split /\t/);
 	@strains = @headers[4..$#headers];
 	
 	while (<SNP>){
+		chomp;
 		++$snp_count;
 		$_ =~ s/\r|\n//g; # removing CR and LF line endings
 		my ($chr,$pos,$ref,$snp,@calls)  = (split /\t/);
 		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
-		last if ($snp_count == 1000);
+		# last if ($snp_count == 1000);
 	
 		### for N-masked genomes the SNPs are stored in an. hashes
 		$snps{$chr}->{$pos}->{ref} = $ref;
@@ -1333,14 +1382,15 @@ sub read_snps{
 
     warn "Stored $snp_count positions in total\n\n";
 	# like this we can move through  the file
-	foreach my $chr(keys %snps){
-		foreach my $pos(keys %{$snps{$chr}} ){
-			foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
-				warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-			}
-		}		
-	}
-
+	#foreach my $chr(keys %snps){
+	#	foreach my $pos(keys %{$snps{$chr}} ){
+	#		foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+				# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+	#		}
+			# warn "~~~~~\n";
+	#	}		
+#	}
+#
 
     return ($snp_count);
 
@@ -1919,3 +1969,85 @@ EOF
     ;
   exit 1;
 }
+
+
+#Subroutine: maps_which_library
+# Takes current value (decimal) and the number of the library to evaluate
+# Returns:
+# 0 - read not map to library
+# 1 - read maps uniquely to this library but maps to no others
+# 2 - read multi-maps to this library but maps to no others
+# 3 - read maps uniquely to this library and maps to at least one other library
+# 4 - read multi-maps to this library and maps to at least one other library
+sub maps_which_library {
+    my ( $val, $library ) = @_;
+    my $single_map         = 0;
+    my $multi_map          = 0;
+    my $maps_other_library = 0;
+
+    my $pos_lib2 = $library * 2;
+    my $pos_lib1 = $pos_lib2 - 1;
+    my $bitshift_lib1;
+    my $bitshift_lib2;
+    my $bitshift_total;
+    my $new_val;
+
+    if ( bit_check( $val, $pos_lib2 ) ) {    #Multimaps library?
+        $multi_map = 1;
+
+        #Does read map to other libraries
+        $bitshift_lib2 = 1 << ( $pos_lib2 - 1 );
+        $bitshift_lib1 = 1 << ( $pos_lib1 - 1 );
+        $bitshift_total = $bitshift_lib2 | $bitshift_lib1;
+        $maps_other_library = 1 if ( $bitshift_total != $val );
+
+    } elsif ( bit_check( $val, $pos_lib1 ) ) {    #Unique maps library?
+        $single_map = 1;
+
+        #Does read map to other libraries
+        $bitshift_lib1 = 1 << ( $pos_lib1 - 1 );
+        $maps_other_library = 1 if ( $bitshift_lib1 != $val );
+    }
+
+    if ( $multi_map and $maps_other_library ) {
+        return 4;
+    } elsif ( $single_map and $maps_other_library ) {
+        return 3;
+    } elsif ($multi_map) {
+        return 2;
+    } elsif ($single_map) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+
+#Subroutine: bit_check
+#Takes a decimal number and a position in the binary equivalent (position1 is rightmost)
+#and returns whether it is 0 or 1
+sub bit_check {
+    my ( $decimal, $position ) = @_;
+    my $bitshift = 1 << ( $position - 1 );
+
+    if ( $decimal & $bitshift ) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+#Subroutine: bit_or
+#Takes a decimal number and a position in the binary equivalent (position1 is rightmost)
+#and converts 0->1 at that position
+#Returns new (or possibly original) decimal value
+sub bit_or {
+    my ( $decimal, $position ) = @_;
+    my $bitshift = 1 << ( $position - 1 );
+
+    my $new_decimal = $decimal | $bitshift;
+    return $new_decimal;
+}
+
+
