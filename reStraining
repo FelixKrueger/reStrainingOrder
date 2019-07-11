@@ -33,7 +33,6 @@ my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build) = process_commandline ();
 
 my %snps; # storing all filtered SNPs
-warn "\nWE NEED TO FUNDAMENTALLY CHANGE WHAT WE ARE DOING\n";
 
 warn "\nSummarising reStraining parameters - Genome Preparation\n";
 
@@ -55,11 +54,10 @@ print "="x37,"\n\n";
 sleep(1);
 
 ### Dealing with chromosomes - At the moment we are trying to limit the analysis on chromosome 1 [mainly for time and memory reasons]
+#my @chroms = (1); # this is to just use chromosome 1 
+my @chroms = detect_chroms(); # this alternate method will detect all chromosomes from the VCF header and use those instead.
 
-my @chroms = (1); 
-# @chroms = detect_chroms(); # this alternate method will detect all chromosomes from the VCF header and use those instead.
-
-print "Using the following chromosome(s) [currently hardcoded]:\t";
+print "Using the following chromosome(s):\t";
 # print "Using the following chromosomes (detected from VCF file >>$vcf_file<<):\n";
 print join ("\t",@chroms),"\n\n";
 
@@ -84,6 +82,7 @@ my $report = "reStrainingOrder_genome_preparation_report.txt";
 open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
 
 for my $chr (@chroms) {
+    # TODO: We might have to do this per chromosome so we don't store too many SNPs and use a huge amount of memory
     create_modified_chromosome($chr);
 }
 
@@ -286,15 +285,14 @@ sub filter_relevant_SNP_calls_from_VCF{
 	   open (IN, $vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
     }
     
-    my $matrix_file = "zzzzzzzzzzz_matrix.txt";
+    my $matrix_file = "MGPv5_SNP_matrix_chr1.txt.gz";
     
     ### Printing the SNP matrix to this file, which will be important for the reStrainingOrder process
     warn "Writing a SNP matrix for chromosome 1 for all strains to $matrix_file\n\n";
-    open (THEMATRIX,'>',$matrix_file) or die "Failed to write to file '$matrix_file': $!\n";
+    open (THEMATRIX,"| gzip -c - > $matrix_file") or die "Failed to write to file '$matrix_file': $!\n";
 
     print THEMATRIX join ("\t","Chromosome","Position","REF","ALT");
-    print THEMATRIX "\tBlack6";
-    foreach my $index (sort {$a <=> $b} keys %strains){
+     foreach my $index (sort {$a <=> $b} keys %strains){
         # warn "$index\t$strains{$index}->{strain}\n";
         print THEMATRIX "\t$strains{$index}->{strain}";
     }
@@ -324,7 +322,8 @@ sub filter_relevant_SNP_calls_from_VCF{
         print {$fhs{$chr}} ">$chr\n";
     }  
 
-   
+    my $last_chr;
+
     while (<IN>){
     	$_ =~ s/(\r|\n)//g; # removing end of line characters
 
@@ -352,12 +351,20 @@ sub filter_relevant_SNP_calls_from_VCF{
         # This is the format of the VCF (v5) file
         #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  129P2_OlaHsd    129S1_SvImJ     129S5SvEvBrd    AKR_J   A_J     BALB_cJ BTBR_T+_Itpr3tf_J       BUB_BnJ C3H_HeH C3H_HeJ C57BL_10J       C57BL_6NJ       C57BR_cdJ      C57L_J  C58_J   CAST_EiJ        CBA_J   DBA_1J  DBA_2J  FVB_NJ  I_LnJ   KK_HiJ  LEWES_EiJ       LP_J    MOLF_EiJ        NOD_ShiLtJ      NZB_B1NJ        NZO_HlLtJ       NZW_LacJ        PWK_PhJ RF_J    SEA_GnJ SPRET_EiJ     ST_bJ    WSB_EiJ ZALENDE_EiJ
         my ($chr,$pos,undef,$ref,$alt,undef,undef,undef,undef,@strains) = (split /\t/);
-
-		# warn "$chr , $pos , $ref , $alt\n"; sleep(1);
-        unless ($chr eq '1'){
-            warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
-            last;
+        unless (defined $last_chr){
+            $last_chr = $chr; # only once
+            warn "Processing first chromosome (chr $chr)\n";
         }
+        
+        unless ($chr eq $last_chr){
+            warn "Reached a new chromosome (chr $chr)\n";
+            $last_chr = $chr; 
+        }
+        	# warn "$chr , $pos , $ref , $alt\n"; sleep(1);
+        #unless ($chr eq '1'){
+        #    warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
+        #    last;
+        #}
 
 		# skipping if the reference base is not well defined in Black6
 		if ($ref =~ /[^ATCG]/){ # reference base contained any non A, C, T, G characters or more than one base
@@ -383,8 +390,7 @@ sub filter_relevant_SNP_calls_from_VCF{
         # Rather than looping through all of the strains to find positions that are unique to one strain or another
         # (the first method), we are generating a matrix of all possible SNPs for currently Chr 1 for all strains
         my @straincalls;
-        push @straincalls, 0; # This is for Black 6, which by definition has calls of 0
-
+        
         # The first 8 fields are irrelevant: #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  
 		foreach my $index (0..$#strains){
         	# print "INDEX: $index\tSTRAIN: $strains{$index}->{strain}\t\t$strains[$index]\n"; sleep(1);
@@ -508,12 +514,19 @@ sub filter_relevant_SNP_calls_from_VCF{
         # Now that we have processed all strains we can print this position to THE MATRIX
         if ($should_stay){  
             my $snp = join ("\t",$chr,$pos,$ref,$alt,@straincalls);
-	        print THEMATRIX "$snp\n";	
+
+            # Only printing out positions for chromosome 1 to THE MATRIX
+	        if ($chr == 1){
+                print THEMATRIX "$snp\n";	
+                ++$matrix_count;
+            }
 
             my $location = join (":",$chr,$pos);      
-            $snps{$location}->{snp} = $snp;
-            print {$fhs{$chr}} "$snps{$location}->{snp}\n"; # also writing into the SNP folder
-            ++$matrix_count;
+            # $snps{$location}->{snp} = $snp;
+            #print {$fhs{$chr}} "$snps{$location}->{snp}\n"; # also writing into the SNP folder
+       
+            print {$fhs{$chr}} "$snp\n"; # also writing into the SNP folder
+           
         }
         else{
             ++$positions_discarded;
@@ -736,15 +749,13 @@ sub process_commandline{
     my $skip_filtering;
     my $genome_folder;
     my $nmasking;
-    my $genome_build;
     
     my $command_line = GetOptions ('help|man'             => \$help,
 				   'versions'             => \$version,
 				   'list_strains'         => \$list_strains,
 				   'vcf_file=s'           => \$vcf_file,
 				   'nmasking'             => \$nmasking,
-				   'reference_genome=s'   => \$genome_folder,
-				   'genome_build=s'       => \$genome_build,
+				   'genome|reference_genome=s'   => \$genome_folder,
 	);
   
     ### EXIT ON ERROR if there were errors with any of the supplied options
