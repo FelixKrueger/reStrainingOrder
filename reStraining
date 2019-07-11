@@ -516,7 +516,7 @@ sub filter_relevant_SNP_calls_from_VCF{
             my $snp = join ("\t",$chr,$pos,$ref,$alt,@straincalls);
 
             # Only printing out positions for chromosome 1 to THE MATRIX
-	        if ($chr == 1){
+	        if ($chr eq 1){
                 print THEMATRIX "$snp\n";	
                 ++$matrix_count;
             }

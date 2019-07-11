@@ -22,7 +22,7 @@ use Cwd;
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-my $stopat = 100000;
+my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
 my $pipeline_version = '0.1.0_dev';
@@ -135,10 +135,10 @@ while (@ARGV){
 
     warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
-    warn "Here are the strain counts:\n";
-    foreach my $strain(sort {$a cmp $b} keys %counting){
-    	warn "$strain\t$counting{$strain}\n";
-    }
+    #warn "Here are the strain counts:\n";
+    #foreach my $strain(sort {$a cmp $b} keys %counting){
+   	# 	warn "$strain\t$counting{$strain}\n";
+    #}
 
 	my $processed = 0;
 	warn "Now we can cycle through all positions and produce whatever we need\n";
@@ -205,7 +205,7 @@ while (@ARGV){
     warn "More detailed strain counts:\n";
 
 	my $threshold = 1;
-	print "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\t% agreement\n";
+	print OUT "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\tagreement\n";
 	# $strain_tallies{$strains[$index]}->{positions_covered}++;
  	foreach my $strain (sort {$a cmp $b} keys %strain_tallies){
 
@@ -217,7 +217,7 @@ while (@ARGV){
 		}
 		my $percent_agreeing = sprintf("%.2f",$strain_tallies{$strain}->{agree}/($strain_tallies{$strain}->{agree} + $strain_tallies{$strain}->{disagree}) * 100 );
 
-    	print "$strain\t$strain_tallies{$strain}->{positions_covered}\t$strain_tallies{$strain}->{agree}\t$strain_tallies{$strain}->{disagree}\t$percent_agreeing\n";
+    	print OUT "$strain\t$strain_tallies{$strain}->{positions_covered}\t$strain_tallies{$strain}->{agree}\t$strain_tallies{$strain}->{disagree}\t$percent_agreeing\n";
 
     	my $not_covered = 0;
 		my $covered = 0;
@@ -335,30 +335,30 @@ while (@ARGV){
 
     ####
 
-    my $sortfile = $outfile;
+    #my $sortfile = $outfile;
 
-    if ($sortfile =~ s/allele_flagged\.bam$/bam/){
-	if ($sortfile =~ s/bam$/SNPsplit_sort.txt/){
-	    if (-e $sortfile){
+ 	#   if ($sortfile =~ s/allele_flagged\.bam$/bam/){
+	#		if ($sortfile =~ s/bam$/SNPsplit_sort.txt/){
+	#			if (-e $sortfile){
+	#
+	#		open (SORT,"${output_dir}$sortfile") or die "Failed to read sorting report from '${output_dir}$sortfile': $!\n";
+	#		my $doc;
+	#		while(<SORT>){
+	#			chomp;
+	#			$_ =~ s/\r//g;
+	#			$doc .= $_."\n";
+	#		}
 
-		open (SORT,"${output_dir}$sortfile") or die "Failed to read sorting report from '${output_dir}$sortfile': $!\n";
-		my $doc;
-		while(<SORT>){
-		    chomp;
-		    $_ =~ s/\r//g;
-		    $doc .= $_."\n";
-		}
+	#		close SORT or die $!;
 
-		close SORT or die $!;
+			### appending the sorting report to the tagging report
+	#		warn "Appending sorting report to tagging report...\n";
 
-		### appending the sorting report to the tagging report
-		warn "Appending sorting report to tagging report...\n";
-
-		print REPORT $doc;
-	    }
-	}
-    }
-    warn "SNPsplit processing finished...\n\n";
+	#		print REPORT $doc;
+	#		}
+	#	}
+    #}
+    # warn "SNPsplit processing finished...\n\n";
 }
 
 ###
@@ -384,7 +384,7 @@ sub process_masked_BAM_file{
     while (<IN>){
 
 	if ($_ =~ /^\@/){ # header lines
-	    print OUT;
+	    # print OUT;
 	    next;
 	}
 
@@ -492,9 +492,9 @@ sub process_masked_BAM_file{
 	    die "The XX tag should have been set by now ...\n";
 	}
 
-	chomp; # appending the XX tag to the current BAM line
-	$_ .= "\t$XX_tag\n";
-	print OUT;
+		chomp; # appending the XX tag to the current BAM line
+		$_ .= "\t$XX_tag\n";
+		#	print OUT;
 
     }
 
@@ -583,11 +583,11 @@ sub process_masked_BAM_file{
     print REPORT "Of valid N containing reads,\n";
     print REPORT "N was present in the list of known SNPs:\t$snp_found ($pc_n_found%)\n";
     if ($bisulfite){
-	print REPORT "Positions were skipped since they involved C>T SNPs:\t$ct_snp\n";
+		print REPORT "Positions were skipped since they involved C>T SNPs:\t$ct_snp\n";
     }
     print REPORT "N was not present in the list of SNPs:\t\t$no_snp_found ($pc_no_n_found%)\n\n";
 
-    close OUT or warn "Failed to close filehandle OUT: $!. Exit status: $?\n";
+    # close OUT or warn "Failed to close filehandle OUT: $!. Exit status: $?\n";
 
     return;
 
@@ -1439,10 +1439,10 @@ sub read_snps_bisulfite{
     warn "Processing SNPs provided in '$snp_file' in a bisulfite-aware fashion...\n";
 
     if ($snp_file =~ /\.gz$/){
-	open (SNP,"gunzip -c $snp_file |") or die "Failed to read from zgipped $snp_file: $!\n\n";
+		open (SNP,"gunzip -c $snp_file |") or die "Failed to read from zgipped $snp_file: $!\n\n";
     }
     else{
-	open (SNP,$snp_file) or die "Failed to read from $snp_file: $!\n\n";
+		open (SNP,$snp_file) or die "Failed to read from $snp_file: $!\n\n";
     }
 
     ### READING FROM SNP FILE
@@ -1537,18 +1537,18 @@ sub open_output_filehandles{
     $impossible_to_distinguish_file =~ s/bam$/undecided.sam/;
 
     $outfile =~ s/sam$/bam/;
-    $outfile =~ s/bam$/allele_flagged.sam/;
+    $outfile =~ s/bam$/strain_scores.txt/;
 
     $report_file =~ s/sam$/bam/;
-    $report_file =~ s/bam$/SNPsplit_report.txt/;
+    $report_file =~ s/bam$/reStraingingOrder_report.txt/;
 
-    if ($bam){
-	$outfile =~ s/sam$/bam/;
-	open (OUT,"| $samtools_path view -bS 2> /dev/null - > ${output_dir}$outfile") or die "Unable to write to BAM file '$outfile': $!\n";
-    }
-    else{ # writing out to a SAM file
+    #if ($bam){
+	# $outfile =~ s/sam$/bam/;
+		# open (OUT,"| $samtools_path view -bS 2> /dev/null - > ${output_dir}$outfile") or die "Unable to write to BAM file '$outfile': $!\n";
+    #}#
+    #else{ # writing out to a SAM file
 	open (OUT,'>',"${output_dir}$outfile") or die "Unable to write to file '${output_dir}$outfile': $!\n";
-    }
+    #}
 
     open (REPORT,'>',"${output_dir}$report_file") or die "Unable to write to file '${output_dir}$report_file': $!\n";
 
