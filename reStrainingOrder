@@ -37,6 +37,7 @@ my $count_SNPs_stored = 0;
 
 my %counting; # storing tallies of strain reads.
 my %strain_tallies;
+my %pairwise; # storing all pairwise comparisons
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
 
 while (@ARGV){
@@ -125,12 +126,8 @@ while (@ARGV){
 		#}
     #}
 
-
     process_masked_BAM_file($file);
-	my ($strain1_index,$strain2_index) = (10,15); 
-	
-	warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
-    warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
+
 
     #warn "Here are the strain counts:\n";
     #foreach my $strain(sort {$a cmp $b} keys %counting){
@@ -145,9 +142,25 @@ while (@ARGV){
 	# STEP 2: Calculate pair-wise hybrid strain compatibility
 
 
+	# The order is: Strain Combination number // strain 1 index // strain 2 index
+	my $combo = 0;
+	foreach my $index (0..$#strains){
+		foreach my $index2 ( ($index+1)..$#strains){
+			++$combo;
+			#print "Index 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n"; sleep(1);
+			calculate_pairwise_comparisons($combo,$index,$index2);
+		}
+	}
+	
+	
+	foreach my $combo(sort keys %pairwise){
+		print "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\n";
+	}
+	#warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
+    #w#arn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
 	# STEP 3: Calculate hybrid strain ratios
-	calculate_hybrid_strain_ratios();	
+	# calculate_hybrid_strain_ratios();	
 	#print_hybrid_strain_report();
 	exit;
 
@@ -1631,6 +1644,108 @@ sub calculate_single_strain_tallies{
 	}
 }
 
+sub calculate_pairwise_comparisons{
+
+	my ($combo,$strain1_index,$strain2_index) = @_;
+	# currently testing this with B6 CAST
+	#my ($strain1_index,$strain2_index) = (10,15); 
+	
+	my $processed = 0;
+	my $not_covered = 0;
+	my $informative = 0;
+	my $not_informative = 0;
+
+	my %hybrid_agreement;
+	$hybrid_agreement{0}->{name} = $strains[$strain1_index];
+	$hybrid_agreement{1}->{name} = $strains[$strain2_index];
+
+	my $yes = 0;
+	my $no = 0;
+
+	warn "Calculating hybrid strain agreement ratio for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+
+			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+
+			# Number of different positions that were covered by any reads at all
+			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
+				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+				# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
+				# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
+				# sleep(1);
+			
+				# The position agrees with a hybrid potential hybrid if both positions only interesting if the 2 strains have a different genotype here					
+				if ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0) ){
+					# warn "Pure 0/0\n";
+					if (defined $snps{$chr}->{$pos}->{REF}){
+						$yes += $snps{$chr}->{$pos}->{REF};
+					}
+					if (defined $snps{$chr}->{$pos}->{ALT}){
+						$no  += $snps{$chr}->{$pos}->{ALT};
+					}
+					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+						$no  += $snps{$chr}->{$pos}->{OTHER};;
+					}
+				}
+				elsif ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1) ){
+					# warn "Pure 1/1\n";
+					if (defined $snps{$chr}->{$pos}->{REF}){
+						$no  += $snps{$chr}->{$pos}->{REF};
+					}
+					if (defined $snps{$chr}->{$pos}->{ALT}){
+						$yes += $snps{$chr}->{$pos}->{ALT};
+					}
+					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+						$no  += $snps{$chr}->{$pos}->{OTHER};;
+					}
+				}
+				elsif ( (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1)) 
+				or (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0)) ){
+					#warn "Mix\n";
+					if (defined $snps{$chr}->{$pos}->{REF}){
+						$yes += $snps{$chr}->{$pos}->{REF};
+					}
+					if (defined $snps{$chr}->{$pos}->{ALT}){
+						$yes += $snps{$chr}->{$pos}->{ALT};
+					}
+					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+						$no  += $snps{$chr}->{$pos}->{OTHER};;
+					}
+				}
+				else{
+					die "We require to have one of the above combinations!";					
+				}
+					
+				$processed++;
+				# sleep(1);
+			}
+			else{
+				++$not_covered; 	# warn "Position was not covered at all\n";		
+			}	
+		}	
+	
+	}
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{0}->{name} hybrid strain canditate stats\n=====================================================\n";
+	warn "SNP positions were covered:\t\t$processed\n";	
+	warn "Positions were not covered:\t\t$not_covered\n\n";
+	
+	my $percent_agreement;
+	
+	if ( ($yes + $no) > 0){
+		$percent_agreement = sprintf("%.2f",$yes / ($yes + $no) *100);
+	}
+	else{
+		$percent_agreement = 'NA ';
+	}
+	warn "Potential Hybrid\tAgreeing\tNot agreeing\tPercentage agreement\n";
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}\t$yes\t$no\t$percent_agreement\n";
+	$pairwise{$combo}->{hybrid} = "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}";
+	$pairwise{$combo}->{yes} = $yes;
+	$pairwise{$combo}->{no} = $no;
+	$pairwise{$combo}->{percentage} = $percent_agreement;
+}
+
 sub calculate_hybrid_strain_ratios{
 
 	my ($strain1_index,$strain2_index) = @_;
@@ -1737,7 +1852,6 @@ sub calculate_hybrid_strain_ratios{
 	warn "Strain $hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count} ($percent_strain1%)\n";
 	warn "Strain $hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count} ($percent_strain2%)\n";
 }
-
 
 
 
