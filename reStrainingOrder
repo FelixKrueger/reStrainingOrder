@@ -60,32 +60,27 @@ while (@ARGV){
     else{
 		warn "Output format:\t\t\tSAM\n";
     }
-    if ($hic){
-		warn "Input format:\t\t\tHi-C (by definition paired-end)\n";
-    }
-    else{
-		if ($paired){
-			if ($bisulfite){
-			warn "Input format:\t\t\tBismark paired-end (not relevant for tagging process)\n";
-			}
-			else{
-			warn "Input format:\t\t\tPaired-end (not relevant for tagging process)\n";
-			}
+  
+	if ($paired){
+		if ($bisulfite){
+		warn "Input format:\t\t\tBismark paired-end (not relevant for tagging process)\n";
 		}
 		else{
-			if ($bisulfite){
-			warn "Input format:\t\t\tBismark Single-End\n";
-			}
-			else{
-			warn "Input format:\t\t\tSingle-End\n";
-			}
+		warn "Input format:\t\t\tPaired-end (not relevant for tagging process)\n";
 		}
-    }
+	}
+	else{
+		if ($bisulfite){
+		warn "Input format:\t\t\tBismark Single-End\n";
+		}
+		else{
+		warn "Input format:\t\t\tSingle-End\n";
+		}
+	}
+
     warn "\n\n";
 
-    sleep (1);
-
-
+   
     ### SAM TO BAM CONVERSION - if necessary
     if ($file =~/\.sam$/){
 		$file = sam2bam_convert($file);
@@ -132,7 +127,9 @@ while (@ARGV){
 
 
     process_masked_BAM_file($file);
-
+	my ($strain1_index,$strain2_index) = (10,15); 
+	
+	warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
     warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
     #warn "Here are the strain counts:\n";
@@ -140,11 +137,18 @@ while (@ARGV){
    	# 	warn "$strain\t$counting{$strain}\n";
     #}
 
-    calculate_tallies();
 
-    print_report();
+	# STEP 1: Calculate single-strain compatibility
+    #calculate_single_strain_tallies();
+    #print_single_strain_report();
+
+	# STEP 2: Calculate pair-wise hybrid strain compatibility
 
 
+
+	# STEP 3: Calculate hybrid strain ratios
+	calculate_hybrid_strain_ratios();	
+	#print_hybrid_strain_report();
 	exit;
 
     ######################
@@ -155,9 +159,6 @@ while (@ARGV){
 
     # Calling the allele-specific sorting now
     my @args;
-    if ($hic){
-		push @args, '--hic';
-    }
     if ($samtools_path){
 		push @args, "--samtools_path $samtools_path";
     }
@@ -546,6 +547,7 @@ sub determine_N_position{
 					else{
 						if ($verbose) { warn "The base was different to both genome 1 or genome 2: $read_base\n";}
 						++$irrelevant;
+						$snps{$chr}->{$genomic_pos}->{OTHER}++;
 					}
 				}
 			}
@@ -1557,16 +1559,15 @@ sub test_positional_sorting{
     return 1;
 }
 
-sub calculate_tallies{
+sub calculate_single_strain_tallies{
 
 	my $processed = 0;
-	warn "Calculating strain tallies to determine agreement percentage\n==================================================\n\n";
+	warn "Calculating strain tallies to determine agreement percentage\n============================================================\n\n";
 	foreach my $chr(keys %snps){
 		foreach my $pos(keys %{$snps{$chr}} ){
 
 			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-
-			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT}){
+			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
 				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
 				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
 					
@@ -1578,7 +1579,6 @@ sub calculate_tallies{
 					#warn "Pos: $pos\tGenotype call was: $snps{$chr}->{$pos}->{calls}[$index]\tStrain: $strains[$index]\n";
 					if ($snps{$chr}->{$pos}->{calls}[$index] == 0){
 						
-
 						# warn "Sequence looked like the reference\n";
 						if (defined $snps{$chr}->{$pos}->{REF}){
 							# warn "Adding $snps{$chr}->{$pos}->{REF} to AGREE\n";
@@ -1591,7 +1591,12 @@ sub calculate_tallies{
 							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{ALT};
 							# Black 6 has by definition a GT of 0
 							#$strain_tallies{'Black6'}->{disagree} += $snps{$chr}->{$pos}->{ALT};
-						}						
+						}		
+						if (defined $snps{$chr}->{$pos}->{OTHER}){
+							# Bases other than ALT or REF disagree by definition
+							# warn "Adding $snps{$chr}->{$pos}->{OTHER} to DISAGREE\n"; sleep(1);
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{OTHER};				
+						}
 					}
 					elsif($snps{$chr}->{$pos}->{calls}[$index] == 1){
 						# warn "Sequence looked like the ALT base\n";
@@ -1603,9 +1608,14 @@ sub calculate_tallies{
 							# warn "Adding $snps{$chr}->{$pos}->{ALT} to AGREE\n";
 							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{ALT};
 						}
+						if (defined $snps{$chr}->{$pos}->{OTHER}){
+							# Bases other than ALT or REF disagree by definition
+							# warn "Adding $snps{$chr}->{$pos}->{OTHER} to DISAGREE\n"; sleep(1);
+							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{OTHER};				
+						}
 					}
 					else{
-						die "This should never happen! line 189\n";						
+						die "This should never happen! line 1623\n";						
 					}
 					# sleep(1);
 				}
@@ -1621,8 +1631,117 @@ sub calculate_tallies{
 	}
 }
 
+sub calculate_hybrid_strain_ratios{
 
-sub print_report{
+	my ($strain1_index,$strain2_index) = @_;
+	# currently testing this with B6 CAST
+	# my ($strain1_index,$strain2_index) = (10,15); 
+	
+	my $processed = 0;
+	my $not_covered = 0;
+	my $informative = 0;
+	my $not_informative = 0;
+
+	my %hybrid_identity;
+	$hybrid_identity{0}->{name} = $strains[$strain1_index];
+	$hybrid_identity{1}->{name} = $strains[$strain2_index];
+
+
+	warn "Calculating strain ratios for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+
+			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+			# Number of different positions that were covered by any reads at all
+			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
+				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+				# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
+				# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
+				# sleep(1);
+
+				# The position is only interesting if the 2 strains have a different genotype here					
+				if ( $snps{$chr}->{$pos}->{calls}[$strain1_index] ne $snps{$chr}->{$pos}->{calls}[$strain2_index] ){
+
+					++$informative;
+
+					# strain 1 looks like the reference
+					if ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0){
+						#warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
+						#warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
+						
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
+						}
+
+					}
+					elsif($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0){
+						# warn "Strain 2 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
+						# warn "Strain 1 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
+
+						if (defined $snps{$chr}->{$pos}->{REF}){
+							$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
+						}
+						if (defined $snps{$chr}->{$pos}->{ALT}){
+							$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
+						}
+
+					}
+					else{
+						die "Either strain 1 or strain 2 should look like the reference!\n";
+					}
+
+				}
+				else{
+					# position is not informative
+					++$not_informative;
+				}
+					
+				$processed++;
+			
+			}
+			else{
+				++$not_covered;
+				# warn "Position was not covered at all\n";		
+			}	
+		}	
+	
+	}
+	warn "$hybrid_identity{0}->{name}/$hybrid_identity{0}->{name} hybrid strain stats\n=====================================================\n";
+	warn "SNP positions were covered:\t\t$processed\n";	
+	warn "Positions were not covered:\t\t$not_covered\n";
+	warn "SNP positions were informative:\t\t$informative\n";	
+	warn "SNP positions were not informative (skipped):\t$not_informative\n\n";
+
+	my $percent_strain1;
+	my $percent_strain2;
+	
+	unless (defined $hybrid_identity{0}->{count}){
+		$hybrid_identity{0}->{count} = 0;
+	}
+	unless (defined $hybrid_identity{1}->{count}){
+		$hybrid_identity{1}->{count} = 0;
+	}
+
+	if ( ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) != 0){
+		$percent_strain1 = sprintf("%.1f",$hybrid_identity{0}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
+		$percent_strain2 = sprintf("%.1f",$hybrid_identity{1}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
+	}
+	else{
+		$percent_strain1 = 'NA ';
+		$percent_strain2 = 'NA ';
+	}
+
+	warn "Strain $hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count} ($percent_strain1%)\n";
+	warn "Strain $hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count} ($percent_strain2%)\n";
+}
+
+
+
+
+sub print_single_strain_report{
     warn "More detailed strain counts:\n";
 
 	my $threshold = 1;
@@ -1636,7 +1755,7 @@ sub print_report{
 		unless (defined $strain_tallies{$strain}->{disagree}){
 			$strain_tallies{$strain}->{disagree} = 0;
 		}
-
+	
 		my $percent_agreeing;
 		
 		if ( ($strain_tallies{$strain}->{agree} + $strain_tallies{$strain}->{disagree}) == 0){ 
@@ -1815,20 +1934,20 @@ VERSION
 
 
     unless ($snp_file){
-	die "You need to provide a text file detailing SNPs with '--SNP_file your.file'. Please respecify!\n";
+		die "You need to provide a text file detailing SNPs with '--SNP_file your.file'. Please respecify!\n";
     }
 
     if ($no_sort){
-	foreach my $file (@ARGV){
-	    die "The option --no_sorting requires you to supply a BAM file (ending in .bam), but at least one of the file names did not look like a BAM file: '$file'. Please respecify!\n\n" unless ($file =~ /\.bam$/);
-	}
+		foreach my $file (@ARGV){
+			die "The option --no_sorting requires you to supply a BAM file (ending in .bam), but at least one of the file names did not look like a BAM file: '$file'. Please respecify!\n\n" unless ($file =~ /\.bam$/);
+		}
     }
 
     ### checking to see if all files are indeed present in the folder
     foreach my $file (@ARGV){
-	unless(-e $file){
-	    die "Input file '$file' doesn't exist in the input folder. Please check filenames and try again!\n\n";
-	}
+		unless(-e $file){
+			die "Input file '$file' doesn't exist in the input folder. Please check filenames and try again!\n\n";
+		}
     }
 
     ### PATH TO SAMTOOLS
@@ -1858,21 +1977,21 @@ VERSION
     }
     # Check whether Samtools is in the PATH if no path was supplied by the user
     else{
-	if (!system "which samtools >/dev/null 2>&1"){ # STDOUT is binned, STDERR is redirected to STDOUT. Returns 0 if samtools is in the PATH
-	    $samtools_path = `which samtools`;
-	    chomp $samtools_path;
-	}
+		if (!system "which samtools >/dev/null 2>&1"){ # STDOUT is binned, STDERR is redirected to STDOUT. Returns 0 if samtools is in the PATH
+			$samtools_path = `which samtools`;
+			chomp $samtools_path;
+		}
     }
 
     unless (defined $samtools_path){
-	die "Could not find an installation of Samtools on your system. Please either install Samtools first or provide the path to an existing installation\n\n";
+		die "Could not find an installation of Samtools on your system. Please either install Samtools first or provide the path to an existing installation\n\n";
     }
 
     ### --singletons only make sense for paired-end data
     if ($singletons){
-	if ($hic){
-	    die "The option --singletons can't be used in Hi-C mode since this expects paired-end data. Please respecify!\n\n";
-	}
+		if ($hic){
+			die "The option --singletons can't be used in Hi-C mode since this expects paired-end data. Please respecify!\n\n";
+		}
 
 	unless ($paired){
 	    warn "The option --singletons only makes sense for paired-end files. Simply ignoring it in single-end mode...\n"; sleep(1);
