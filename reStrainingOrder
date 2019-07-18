@@ -28,7 +28,7 @@ my $stopat = 10000000;
 my $pipeline_version = '0.1.0_dev';
 my $parent_dir = getcwd;
 my @strains;
-my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$hic,$conflict,$output_dir,$singletons,$bisulfite) = process_commandline ();
+my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$hic,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
 my %snps; # storing SNP position and sequence information for all SNPs
 
 my $snp_found = 0;
@@ -46,12 +46,13 @@ while (@ARGV){
     warn "Now starting to process file <<< '$file' >>> \n\n";
     sleep (1);
 
-    my $outfile = open_output_filehandles($file);
+    my ($outfile,$pairwise_hybrid_file) = open_output_filehandles($file);
 
     warn "\nSummary of parameters for reStrainingOrder:\n";
     warn '='x40,"\n";
     warn "Infile:\t\t\t\t$file\n";
     warn "SNP annotation file:\t\t$snp_file\n";
+    warn "Potential hybrid file\t\t$pairwise_hybrid_file\n";
     warn "Output directory:\t\t>$output_dir<\n";
     warn "Parent directory:\t\t>$parent_dir<\n";
     warn "Samtools path:\t\t\t$samtools_path\n";
@@ -141,21 +142,29 @@ while (@ARGV){
 
 	# STEP 2: Calculate pair-wise hybrid strain compatibility
 
-
-	# The order is: Strain Combination number // strain 1 index // strain 2 index
-	my $combo = 0;
-	foreach my $index (0..$#strains){
-		foreach my $index2 ( ($index+1)..$#strains){
-			++$combo;
-			#print "Index 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n"; sleep(1);
-			calculate_pairwise_comparisons($combo,$index,$index2);
+	unless ($skip_hybrid_detection){
+		# The order is: Strain Combination number // strain 1 index // strain 2 index
+		my $combo = 0;
+		foreach my $index (0..$#strains){
+			foreach my $index2 ( ($index+1)..$#strains){
+				++$combo;
+				print "Index 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n";
+				calculate_pairwise_comparisons($combo,$index,$index2);
+				last if ($combo == 10);
+			}
+			last if ($combo == 10);
 		}
+		
+		open (PAIRWISE,'>',"${output_dir}$pairwise_hybrid_file") or die "Couldn't write to file $pairwise_hybrid_file: $!\n";
+		print PAIRWISE "Potential Hybrid\tAgreeing\tNot agreeing\tPercentage agreement\n";
+		warn "Strain combination #\tPotential Hybrid\tAgreeing\tNot agreeing\tPercentage agreement\n";
+		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
+			warn "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}%\n";
+			print PAIRWISE "$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\n";	
+		}
+		close PAIRWISE or warn $!;
 	}
 	
-	
-	foreach my $combo(sort keys %pairwise){
-		print "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\n";
-	}
 	#warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
     #w#arn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
@@ -385,7 +394,7 @@ sub process_masked_BAM_file{
     warn "$genome1 reads were specific for genome 1 ($perc_genome1%)\n";
     warn "$genome2 reads were specific for genome 2 ($perc_genome2%)\n";
     if ($bisulfite){
-	warn "$unassigned_but_ct reads that were unassignable contained C>T SNPs preventing the assignment\n"
+		warn "$unassigned_but_ct reads that were unassignable contained C>T SNPs preventing the assignment\n"
     }
     warn "$no_snp reads did not contain one of the expected bases at known SNP positions ($perc_no_snp%)\n";
     warn "$bizarre contained conflicting allele-specific SNPs ($perc_bizarre%)\n\n\n";
@@ -405,20 +414,20 @@ sub process_masked_BAM_file{
     my ($pc_n_found , $pc_no_n_found , $pc_n_deletion , $pc_multi_n_deletion);
 
     if ($count == 0){
-	$pc_n_found = $pc_no_n_found =  $pc_n_deletion = $pc_multi_n_deletion = 'N/A';
+		$pc_n_found = $pc_no_n_found =  $pc_n_deletion = $pc_multi_n_deletion = 'N/A';
     }
     else{
-	if ( ($snp_found + $no_snp_found) == 0){
-	    $pc_n_found = 'N/A';
-	    $pc_no_n_found = 'N/A';
-	}
-	else{
-	    $pc_n_found    = sprintf ("%.2f",$snp_found*100/($snp_found + $no_snp_found));
-	    $pc_no_n_found = sprintf ("%.2f",$no_snp_found*100/ ($snp_found + $no_snp_found) );
-	}
+		if ( ($snp_found + $no_snp_found) == 0){
+		    $pc_n_found = 'N/A';
+		    $pc_no_n_found = 'N/A';
+		}
+		else{
+		    $pc_n_found    = sprintf ("%.2f",$snp_found*100/($snp_found + $no_snp_found));
+		    $pc_no_n_found = sprintf ("%.2f",$no_snp_found*100/ ($snp_found + $no_snp_found) );
+		}
 
-	$pc_n_deletion   = sprintf ("%.2f",$contained_N_deletion*100/ $count );
-	$pc_multi_n_deletion = sprintf ("%.2f",$multi_N_deletion*100/ $count );
+		$pc_n_deletion   = sprintf ("%.2f",$contained_N_deletion*100/ $count );
+		$pc_multi_n_deletion = sprintf ("%.2f",$multi_N_deletion*100/ $count );
     }
 
     warn "SNP coverage report\n===================\n";
@@ -1407,7 +1416,7 @@ sub open_output_filehandles{
     # replacing folder information before creating output file names 24 07 2017
     $file =~ s/.*\///;
 
-    my $outfile = my $genome1_file = my $genome2_file = my $unassigned_file = my $impossible_to_distinguish_file = my $report_file = $file;
+    my $outfile = my $pairwise_hybrid_file = my $genome1_file = my $genome2_file = my $unassigned_file = my $impossible_to_distinguish_file = my $report_file = $file;
 
     # if files were sorted they look like this
     $genome1_file =~ s/sorted\.//;
@@ -1428,6 +1437,9 @@ sub open_output_filehandles{
     $report_file =~ s/sam$/bam/;
     $report_file =~ s/bam$/reStraingingOrder_report.txt/;
 
+	$pairwise_hybrid_file =~ s/sam$/bam/;
+    $pairwise_hybrid_file =~ s/bam$/reStraingingOrder_potentialHybrids.txt/;
+
     #if ($bam){
 	# $outfile =~ s/sam$/bam/;
 		# open (OUT,"| $samtools_path view -bS 2> /dev/null - > ${output_dir}$outfile") or die "Unable to write to BAM file '$outfile': $!\n";
@@ -1446,7 +1458,7 @@ sub open_output_filehandles{
     warn "Writing allele-flagged output file to:\t\t'$outfile'\n\n";
     print REPORT "Writing allele-flagged output file to:\t\t'$outfile'\n\n";
 
-    return $outfile;
+    return ($outfile,$pairwise_hybrid_file);
 
 }
 
