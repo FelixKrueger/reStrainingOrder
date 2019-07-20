@@ -31,7 +31,17 @@ my ($output_dir,$verbose,$manual_output_file,$candidates) = process_commandline(
 # print join (",",@mbias_reports)."\n";
 # print join (",",@nuc_reports)."\n";
 
+my %strain_scores;
+my %hybrid_scores;
+my %allele_ratios;
+
+
 while (@reStrainingOrder_summary_reports){
+	# clearing
+  	%strain_scores = ();
+  	%hybrid_scores = ();
+  	%allele_ratios = ();
+
 
   my $summary_report = shift @reStrainingOrder_summary_reports;
 
@@ -133,11 +143,34 @@ while (@reStrainingOrder_summary_reports){
   #    $doc =~ s/\{\{mbias_r2_section\}\}.*\{\{mbias_r2_section\}\}//s; # treating the string as a single line
   #}
   
- 
-  warn "="x110,"\n\n\n";
-  $verbose and sleep(3);
+ 	my $count = 0;
+	warn "\n\nContents of \%strain_scores:\n";
+    foreach my $number(sort {$a<=>$b} keys %strain_scores){
+    	last if ($count == $candidates);
+    	warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
+    	++$count;
+    } 
 
-  write_out_report($report_output,$doc);
+    $count = 0;
+    warn "\n\nContents of \%hybrid_scores:\n";
+    foreach my $number(sort {$a<=>$b} keys %hybrid_scores){
+    	last if ($count == $candidates);
+    	warn "$number\t$hybrid_scores{$number}->{hybrid}\t$hybrid_scores{$number}->{agree}\t$hybrid_scores{$number}->{disagree}\t$hybrid_scores{$number}->{percent}\n";
+    	++$count;
+    } 
+
+    $count = 0;
+ 	warn "\n\nContents of \%allele_ratios:\n";
+    foreach my $number(sort {$a<=>$b} keys %allele_ratios){
+    	last if ($count == $candidates);
+    	warn "$number\t$allele_ratios{$number}->{strain1}\t$allele_ratios{$number}->{strain2}\t$allele_ratios{$number}->{strain1_count}\t$allele_ratios{$number}->{strain2_count}\t$allele_ratios{$number}->{strain1_percent}\t$allele_ratios{$number}->{strain2_percent}\n";
+    	++$count;
+    } 
+
+  	warn "="x110,"\n\n\n";
+  	$verbose and sleep(3);
+
+	write_out_report($report_output,$doc);
 
 }
 
@@ -196,9 +229,10 @@ sub read_rSO_summary_report{
   my $processed_hybrid_scores;
   my $processed_allele_ratios;
 
-  my %strain_scores;
-  my %hybrid_scores;
-  my %allele_ratios;
+
+  	my $strain_order = 0;
+	my $hybrid_order = 0;
+	my $allele_ratio_order = 0;
 
   while (<SUMM>){
     chomp;
@@ -227,35 +261,82 @@ sub read_rSO_summary_report{
 		
 		if (defined $processed_allele_ratios){
 			# this has to be Section 3: Allele Ratios
-			warn "ALLELE RATIOS: $_\n"; sleep(1);
+			# warn "ALLELE RATIOS: $_\n"; # sleep(1);
+			if ($_ =~ /^Strain1/){
+    			# warn "Header, skipping...: $_\n"; sleep(1);
+   				next; # header
+   			}
+	   		else{
+   				my ($strain1,$strain1_count,$strain1_percent,$strain2,$strain2_count,$strain2_percent) = (split /\t/);
+    			++$allele_ratio_order;
+
+    			print join (" // ",$allele_ratio_order,$strain1,$strain2_count,$strain1_percent,$strain2,$strain2_count,$strain2_percent),"\n" if $verbose; # sleep(1);
+  	 			$allele_ratios{$allele_ratio_order}->{strain1} = $strain1;
+   				$allele_ratios{$allele_ratio_order}->{strain2} = $strain2;
+   				$allele_ratios{$allele_ratio_order}->{strain1_count} = $strain1_count;	
+	   			$allele_ratios{$allele_ratio_order}->{strain2_count} = $strain2_count;
+	   			$allele_ratios{$allele_ratio_order}->{strain1_percent} = $strain1_percent;
+	   			$allele_ratios{$allele_ratio_order}->{strain2_percent} = $strain2_percent;	
+   			}
+
 		}
 		else{
 			if ($_ eq 'ALLELE RATIOS'){
-	    		warn "Reached the Allele Ratio section\n";
-	    		sleep(3);
+	    		# warn "Reached the Allele Ratio section\n";
+	    		# sleep(1);
 	    		++$processed_allele_ratios;
 	    		next;
 	   		}
 	   		else{
 	   			# this has to be Section 2: Hybrid Scores					
-    			warn "HYBRID SCORES: $_\n";
-   			}
+    			# warn "HYBRID SCORES: $_\n";
+    			
+    			if ($_ =~ /^Potential/){
+    				# warn "Header, skipping...\n";
+   					next; # header
+   				}
+	   			else{
+	   				my ($hybrid,$agree,$disagree,$percent,$strain1_index,$strain2_index) = (split /\t/);
+	    			++$hybrid_order;
+
+	    			print join (" // ",$hybrid_order,$hybrid,$agree,$disagree,$percent,$strain1_index,$strain2_index),"\n" if $verbose; # sleep(1);
+	  	 			$hybrid_scores{$hybrid_order}->{hybrid} = $hybrid;
+	   				$hybrid_scores{$hybrid_order}->{strain1_index} = $strain1_index;
+	   				$hybrid_scores{$hybrid_order}->{strain2_index} = $strain2_index;
+	   				$hybrid_scores{$hybrid_order}->{agree} = $agree;
+	   				$hybrid_scores{$hybrid_order}->{disagree} = $disagree;
+	   				$hybrid_scores{$hybrid_order}->{percent} = $percent;
+	   			}
+	   		}
    		}
    	}
     else{
 		# this has to be Section 1: Strain Scores
 		if ($_ eq 'HYBRID SCORES'){
-    		warn "Reached the Hybrid Score section\n";
-    		sleep(3);
+    		# warn "Reached the Hybrid Score section\n";
     		++$processed_hybrid_scores;
     		next;
    		}
    		else{
-   			warn "STRAIN SCORES: $_\n";		
+   			# warn "STRAIN SCORES: $_\n";		
+   			if ($_ =~ /^Strain/){
+   				# warn "Header, skipping...\n";
+   				next; # header
+   			}
+   			else{
+   				my ($strain,$covered,$agree,$disagree,$percent) = (split /\t/);
+   				++$strain_order;
+   				print join (" // ",$strain_order,$strain,$covered,$agree,$disagree,$percent),"\n" if $verbose; # sleep(1);
+   				$strain_scores{$strain_order}->{strain} = $strain;
+   				$strain_scores{$strain_order}->{covered} = $covered;
+   				$strain_scores{$strain_order}->{agree} = $agree;
+   				$strain_scores{$strain_order}->{disagree} = $disagree;
+   				$strain_scores{$strain_order}->{percent} = $percent;
+   			}
    		}
    	}
 	
-    
+	
 
 
 
@@ -422,6 +503,7 @@ sub read_rSO_summary_report{
 
 
   }
+
 
   if (defined $unique and defined $no_aln and defined $multiple and defined $no_genomic and defined $total_seqs){
     warn "Got all necessary information, editing HTML report\n"  if ($verbose);
@@ -1156,24 +1238,16 @@ VERSION
 		}
 	}
 
-	foreach my $summary (@reStrainingOrder_summary_reports){
-
-		warn "Figuring things out for:\n$summary\n";
-		#$aln =~ /^(.+)_(P|S)E_report.txt$/;
-		#my $basename = $1;
-		# warn "using this basename:\n$basename\n\n";
-	}
-
 	if (defined $candidates){
-		unless ($candidates > 0 and $candidates < 30){
-			die "Please select a number of candidates between 1 and 30 (the default is 5) and try again\n";
+		unless ($candidates > 0 and $candidates <= 30){
+			die "Please select a number of candidates between 1 and 30 (the default is 10) and try again\n";
 		}
-		warn "Reporting >>$candidates<< potential hybrid combinations (user defined)\n";
+		warn "Reporting >>$candidates<< potential hybrid combinations [user defined]\n";
 	}
 	else{
-		# the default number of candidates is 5
-		warn "Reporting >>$candidates<< potential hybrid combinations (default)\n";
-		$candidates = 5;
+		# the default number of candidates is 10
+		$candidates = 10;
+		warn "Reporting >>$candidates<< potential hybrid combinations [default]\n";
 	}
 	return ($output_dir,$verbose,$manual_output_file,$candidates);
 
