@@ -20,7 +20,7 @@ use lib "$RealBin/../lib";
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-my $report_version = 'v0.1.1_dev';
+my $report_version = 'v0.1.0';
 my (@reStrainingOrder_summary_reports);
 
 my ($output_dir,$verbose,$manual_output_file,$candidates) = process_commandline();
@@ -43,57 +43,59 @@ while (@reStrainingOrder_summary_reports){
   	%allele_ratios = ();
 
 
-  my $summary_report = shift @reStrainingOrder_summary_reports;
+  	my $summary_report = shift @reStrainingOrder_summary_reports;
 
-  ### HTML OUTPUT FILE
-  my $report_output = $summary_report;
-  $report_output =~ s/^.*\///; # deleting optional path information
-  $report_output =~ s/\.txt$//;
-  $report_output =~ s/$/.html/;
+ 	### HTML OUTPUT FILE
+  	my $report_output = $summary_report;
+  	$report_output =~ s/^.*\///; # deleting optional path information
+  	$report_output =~ s/\.txt$//;
+  	$report_output =~ s/$/.html/;
 
-  # if -o output_file was specified we are going to use that name preferentially.
-  # This may only happen if there is a single report in the folder, or if a single report has been specified manually
-  if ($manual_output_file){
-      warn "A specific output filename was specified: $manual_output_file. Using that one instead of deriving the filename\n"; sleep(1);
-      $report_output = $manual_output_file;
-  }
+  	# if -o output_file was specified we are going to use that name preferentially.
+  	# This may only happen if there is a single report in the folder, or if a single report has been specified manually
+  	if ($manual_output_file){
+      	warn "A specific output filename was specified: $manual_output_file. Using that one instead of deriving the filename\n"; sleep(1);
+      	$report_output = $manual_output_file;
+  	}
   
-  $report_output = $output_dir.$report_output;
-  warn "\nWriting reStrainingOrder HTML report to >> $report_output <<\n\n";
+  	$report_output = $output_dir.$report_output;
+  	warn "\nWriting reStrainingOrder HTML report to >> $report_output <<\n\n";
   
-  # Get the report template into a string
-  my $doc = read_report_template('plotly_template.tpl');
+  	# Get the report template into a string
+  	my $doc = read_report_template('plotly_template.tpl');
   
-  # Get the plot.ly code into a string. This makes the template so much more managable and also allows for quick replacement of the plot.ly
-  # code itself should it get updated
-  my $plotly_code = read_report_template('plot.ly');
+      $doc =~ s/\{\{report_version\}\}/$report_version/g;
+      $doc =~ s/\{\{filename\}\}/$summary_report/g;
+  	# Get the plot.ly code into a string. This makes the template so much more managable and also allows for quick replacement of the plot.ly
+ 	# code itself should it get updated
+  	my $plotly_code = read_report_template('plot.ly');
   
-  # replacing the Plot.ly spaceholders with the actual plot.ly code
-  if ($doc =~ s/\{\{plotly_goes_here\}\}.*\{\{plotly_goes_here\}\}/$plotly_code/s){  # treating the string as a single line
-      warn "Plot.ly injection successful!\n" if $verbose;
-  }
-  else{
-      die "Plot.ly incjection not working, won't be able to construct any meaningful HTML reports in this case....\n\n";
-  }
+  	# replacing the Plot.ly spaceholders with the actual plot.ly code
+  	if ($doc =~ s/\{\{plotly_goes_here\}\}.*\{\{plotly_goes_here\}\}/$plotly_code/s){  # treating the string as a single line
+    	warn "Plot.ly injection successful!\n" if $verbose;
+  	}
+  	else{
+      	die "Plot.ly incjection not working, won't be able to construct any meaningful HTML reports in this case....\n\n";
+ 	}
 
-  #my $reStrainingOrder_logo = read_report_template('reStrainingOrder.logo');
-  #if ($doc =~ s/\{\{rSO_logo_goes_here\}\}.*\{\{rSO_logo_goes_here\}\}/$reStrainingOrder_logo/s){  # treating the string as a single line
-  #    warn "reStrainingOrder.logo injection successful!\n" if $verbose;
-  #}
+  	#my $reStrainingOrder_logo = read_report_template('reStrainingOrder.logo');
+  	#if ($doc =~ s/\{\{rSO_logo_goes_here\}\}.*\{\{rSO_logo_goes_here\}\}/$reStrainingOrder_logo/s){  # treating the string as a single line
+  	#	    warn "reStrainingOrder.logo injection successful!\n" if $verbose;
+  	#}
   
-  my $bioinf_logo = read_report_template('bioinf.logo');
-  if ($doc =~ s/\{\{bioinf_logo_goes_here\}\}.*\{\{bioinf_logo_goes_here\}\}/$bioinf_logo/s){  # treating the string as a single line
-      warn "bioinf.logo injection successful!\n" if $verbose;
-  }
+  	my $bioinf_logo = read_report_template('bioinf.logo');
+  	if ($doc =~ s/\{\{bioinf_logo_goes_here\}\}.*\{\{bioinf_logo_goes_here\}\}/$bioinf_logo/s){  # treating the string as a single line
+      	warn "bioinf.logo injection successful!\n" if $verbose;
+  	}
 
 
-  # Create timestamp
-  $doc = getLoggingTime($doc);
+  	# Create timestamp
+  	$doc = getLoggingTime($doc);
   
-  # BISMARK ALIGNMENT REPORT (mandatory)
-  warn "="x110,"\n";
-  warn "Using the following reStrainingOrder summary report:\t\t> $summary_report <\n";
-  $doc = read_rSO_summary_report($summary_report,$doc);
+  	# PROCESSING reStrainingOrder SUMMARY REPORTS
+  	warn "="x110,"\n";
+  	warn "Using the following reStrainingOrder summary report:\t\t> $summary_report <\n";
+  	$doc = read_rSO_summary_report($summary_report,$doc);
   
   # DEDUPLICATION REPORT (optional)
   #if ($dedup_report){
@@ -143,14 +145,67 @@ while (@reStrainingOrder_summary_reports){
   #    $doc =~ s/\{\{mbias_r2_section\}\}.*\{\{mbias_r2_section\}\}//s; # treating the string as a single line
   #}
   
+  ### Process Single Strain Compatibility Scores
+
+  #<tbody>
+  #  <tr>
+  #    <th>{{sequences_analysed_in_total}}</th>
+  #    <td>{{total_sequences_alignments}}</td>
+  #  </tr>
+  #</tbody>
+  #<tbody>
+  #  <tr>
+  #    <th>{{unique_seqs_text}}</th>
+  #    <td>{{unique_seqs}}</td>
+  #  </tr>
+  #  <tr>
+  #    <th>{{no_alignments_text}}</th>
+  #    <td>{{no_alignments}}</td>
+  #  </tr>
+  #  <tr>
+  #    <th>{{multiple_alignments_text}}</th>
+  #    <td>{{multiple_alignments}}</td>
+  #  </tr>
+  #  <tr>
+  #    <th>Genomic sequence context not extractable (edges of chromosomes)</th>
+  #    <td>{{no_genomic}}</td>
+  #  </tr>
+  #</tbody>
+
  	my $count = 0;
-	warn "\n\nContents of \%strain_scores:\n";
+	my $strain_compatibility_content;
+
+  $strain_compatibility_content .= "<tbody>\n";
+  $strain_compatibility_content .= "\t<tr>\n";
+  $strain_compatibility_content .= "\t\t<th>Strain</th>\n";
+  $strain_compatibility_content .= "\t\t<th>Agreeing Calls</th>\n";
+  $strain_compatibility_content .= "\t\t<th>Disagreeing calls</th>\n";
+  $strain_compatibility_content .= "\t\t<th>Compatibility Percentage</th>\n";  
+  $strain_compatibility_content .= "\t</tr>\n";
+  $strain_compatibility_content .= "</tbody>\n";
+  $strain_compatibility_content .= "<tbody>\n";
+
+  warn "\n\nContents of \%strain_scores:\n";
+
+
     foreach my $number(sort {$a<=>$b} keys %strain_scores){
     	last if ($count == $candidates);
-    	warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
+        $strain_compatibility_content .= "\t<tr>\n";
+        $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{strain}</td>\n";
+        $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{agree}</td>\n";
+        $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{disagree}</td>\n";
+        $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{percent}</td>\n";
+        $strain_compatibility_content .= "\t</tr>\n";      
+      	# warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
     	++$count;
     } 
 
+     $strain_compatibility_content .= "</tbody>\n";
+    warn "$strain_compatibility_content\n";
+
+    $doc =~ s/\{\{strain_compatibility_content\}\}/$strain_compatibility_content/g;
+
+    ### Processing  Hybrid Scores Section
     $count = 0;
     warn "\n\nContents of \%hybrid_scores:\n";
     foreach my $number(sort {$a<=>$b} keys %hybrid_scores){
@@ -524,7 +579,7 @@ sub read_rSO_summary_report{
     $doc =~ s/\{\{sequences_analysed_in_total\}\}/$total_seq_text/g;
 
     $doc =~ s/\{\{filename\}\}/$input_filename/g;
-    $doc =~ s/\{\{bismark_version\}\}/$bismark_version/g;
+   
 
     ### Alignment stats Plot
     $doc =~ s/\{\{alignment_stats_plotly\}\}/$unique,$no_aln,$multiple,$no_genomic/g;
@@ -1280,27 +1335,8 @@ sub print_helpfile{
                            the Bismark mapping report, bismark2report will also attempt to find the other Bismark reports (see below)
                            for inclusion into the HTML report. Specifying a Bismark alignment report file is mandatory.
 
---dedup_report FILE        If not specified explicitly, bismark2report attempts to find a deduplication report file with the same
-                           basename as the Bismark mapping report (generated by deduplicate_bismark) in the
-                           current working directory. Including a deduplication report is optional, and using the FILE 'none'
-                           will skip this step entirely.
 
---splitting_report FILE    If not specified explicitly, bismark2report attempts to find a splitting report file with the same
-                           basename as the Bismark mapping report (generated by the Bismark methylation extractor) in the current
-                           working directory. Including a splitting report is optional, and using the FILE 'none' will skip this
-                           step entirely.
-
---mbias_report FILE        If not specified explicitly, bismark2report attempts to find a single M-bias report file with the same
-                           basename as the Bismark mapping report (generated by the Bismark methylation extractor) in the current
-                           working directory. Including an M-Bias report is optional, and using the FILE 'none' will skip this step
-                           entirely.
-
---nucleotide_report FILE   If not specified explicitly, bismark2report attempts to find a single nucleotide coverage report file
-                           with the same basename as the Bismark mapping report (generated by Bismark with the option
-                           '--nucleotide_coverage') in the current working directory. Including a nucleotide coverage statistics
-                           report is optional, and using the FILE 'none' will skip this report entirely.
-
-                           Script last modified: 03 May 2019
+                           Script last modified: 21 July 2019
 
 EOF
     ;
