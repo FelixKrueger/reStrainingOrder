@@ -45,38 +45,38 @@ while (@reStrainingOrder_summary_reports){
 
   	my $summary_report = shift @reStrainingOrder_summary_reports;
 
- 	### HTML OUTPUT FILE
-  	my $report_output = $summary_report;
-  	$report_output =~ s/^.*\///; # deleting optional path information
-  	$report_output =~ s/\.txt$//;
-  	$report_output =~ s/$/.html/;
+   	### HTML OUTPUT FILE
+    	my $report_output = $summary_report;
+    	$report_output =~ s/^.*\///; # deleting optional path information
+    	$report_output =~ s/\.txt$//;
+    	$report_output =~ s/$/.html/;
 
-  	# if -o output_file was specified we are going to use that name preferentially.
-  	# This may only happen if there is a single report in the folder, or if a single report has been specified manually
-  	if ($manual_output_file){
-      	warn "A specific output filename was specified: $manual_output_file. Using that one instead of deriving the filename\n"; sleep(1);
-      	$report_output = $manual_output_file;
-  	}
-  
-  	$report_output = $output_dir.$report_output;
-  	warn "\nWriting reStrainingOrder HTML report to >> $report_output <<\n\n";
-  
-  	# Get the report template into a string
-  	my $doc = read_report_template('plotly_template.tpl');
-  
-      $doc =~ s/\{\{report_version\}\}/$report_version/g;
-      $doc =~ s/\{\{filename\}\}/$summary_report/g;
-  	# Get the plot.ly code into a string. This makes the template so much more managable and also allows for quick replacement of the plot.ly
- 	# code itself should it get updated
-  	my $plotly_code = read_report_template('plot.ly');
-  
-  	# replacing the Plot.ly spaceholders with the actual plot.ly code
-  	if ($doc =~ s/\{\{plotly_goes_here\}\}.*\{\{plotly_goes_here\}\}/$plotly_code/s){  # treating the string as a single line
-    	warn "Plot.ly injection successful!\n" if $verbose;
-  	}
-  	else{
-      	die "Plot.ly incjection not working, won't be able to construct any meaningful HTML reports in this case....\n\n";
- 	}
+    	# if -o output_file was specified we are going to use that name preferentially.
+    	# This may only happen if there is a single report in the folder, or if a single report has been specified manually
+    	if ($manual_output_file){
+        	warn "A specific output filename was specified: $manual_output_file. Using that one instead of deriving the filename\n"; sleep(1);
+        	$report_output = $manual_output_file;
+    	}
+    
+    	$report_output = $output_dir.$report_output;
+    	warn "\nWriting reStrainingOrder HTML report to >> $report_output <<\n\n";
+    
+    	# Get the report template into a string
+    	my $doc = read_report_template('plotly_template.tpl');
+    
+        $doc =~ s/\{\{report_version\}\}/$report_version/g;
+        $doc =~ s/\{\{filename\}\}/$summary_report/g;
+    	# Get the plot.ly code into a string. This makes the template so much more managable and also allows for quick replacement of the plot.ly
+   	# code itself should it get updated
+    	my $plotly_code = read_report_template('plot.ly');
+    
+    	# replacing the Plot.ly spaceholders with the actual plot.ly code
+    	if ($doc =~ s/\{\{plotly_goes_here\}\}.*\{\{plotly_goes_here\}\}/$plotly_code/s){  # treating the string as a single line
+      	warn "Plot.ly injection successful!\n" if $verbose;
+    	}
+    	else{
+        	die "Plot.ly incjection not working, won't be able to construct any meaningful HTML reports in this case....\n\n";
+   	}
 
   	#my $reStrainingOrder_logo = read_report_template('reStrainingOrder.logo');
   	#if ($doc =~ s/\{\{rSO_logo_goes_here\}\}.*\{\{rSO_logo_goes_here\}\}/$reStrainingOrder_logo/s){  # treating the string as a single line
@@ -97,18 +97,7 @@ while (@reStrainingOrder_summary_reports){
   	warn "Using the following reStrainingOrder summary report:\t\t> $summary_report <\n";
   	$doc = read_rSO_summary_report($summary_report,$doc);
   
-  # DEDUPLICATION REPORT (optional)
-  #if ($dedup_report){
-  #  warn "Using the following deduplication report:\t> $dedup_report <\n";
-  #  $doc =~ s/\{\{deduplication_section\}\}//g; # deleting these tags and then go ahead and fill the table
-  #  $doc = read_deduplication_report($dedup_report,$doc);
-  #}
-  #else{
-  #  warn "No deduplication report file specified, skipping this step\n";
-    # deleting the entire Deduplication Section from the template
-  #  $doc =~ s/\{\{deduplication_section\}\}.*\{\{deduplication_section\}\}//s; # treating the string as a single line
-  #}
-
+  
   # SPLITTING REPORT (optional)
   #if ($splitting_report){
   #  warn "Using the following splitting report:\t\t> $splitting_report <\n";
@@ -119,58 +108,10 @@ while (@reStrainingOrder_summary_reports){
   #  warn "No splitting report file specified, skipping this step\n";
     # deleting the entire Splitting Report C context section from the template
   #  $doc =~ s/\{\{cytosine_methylation_post_deduplication_section\}\}.*\{\{cytosine_methylation_post_deduplication_section\}\}//s; # treating the string as a single line
-  #ß}
-
-  # M-BIAS REPORT (optional)
-  #if ($mbias_report){
-   #   warn "Using the following M-bias report:\t\t> $mbias_report <\n";
-   #   $doc =~ s/\{\{mbias_r1_section\}\}//g; # deleting these tags and then go ahead and fill the table
-   #   (my $state, $doc) = read_mbias_report($mbias_report,$doc);
-  
-      # warn "OK have read the report\n\n";
-      # warn ">$state<<<\n";
-      # sleep(1);
-    #  if ($state eq 'single'){
-	  # warn "Read was $state: Deleting the M-bias2 section\n";
-#	  $doc =~ s/(\{\{mbias_r2_section\}\}.*\{\{mbias_r2_section\}\})//s; # treating the string as a single line
-	  # warn "Deleting: $1\n\n";sleep(5);
- #     }
-  #    else{ # paired-end
-	#  $doc =~ s/\{\{mbias_r2_section\}\}//g; # deleting these tags and then go ahead and fill the table
-     # }
   #}
-  #else{
-  #    warn "No M-bias report file specified, skipping this step\n";
-  #    $doc =~ s/\{\{mbias_r1_section\}\}.*\{\{mbias_r1_section\}\}//s; # treating the string as a single line
-  #    $doc =~ s/\{\{mbias_r2_section\}\}.*\{\{mbias_r2_section\}\}//s; # treating the string as a single line
-  #}
-  
-  ### Process Single Strain Compatibility Scores
 
-  #<tbody>
-  #  <tr>
-  #    <th>{{sequences_analysed_in_total}}</th>
-  #    <td>{{total_sequences_alignments}}</td>
-  #  </tr>
-  #</tbody>
-  #<tbody>
-  #  <tr>
-  #    <th>{{unique_seqs_text}}</th>
-  #    <td>{{unique_seqs}}</td>
-  #  </tr>
-  #  <tr>
-  #    <th>{{no_alignments_text}}</th>
-  #    <td>{{no_alignments}}</td>
-  #  </tr>
-  #  <tr>
-  #    <th>{{multiple_alignments_text}}</th>
-  #    <td>{{multiple_alignments}}</td>
-  #  </tr>
-  #  <tr>
-  #    <th>Genomic sequence context not extractable (edges of chromosomes)</th>
-  #    <td>{{no_genomic}}</td>
-  #  </tr>
-  #</tbody>
+  ################################################
+  ### PROCESSING SINGLE STRAIN COMPTIBILITY SCORES
 
  	my $count = 0;
 	my $strain_compatibility_content;
@@ -179,16 +120,14 @@ while (@reStrainingOrder_summary_reports){
   $strain_compatibility_content .= "\t<tr>\n";
   $strain_compatibility_content .= "\t\t<th>Strain</th>\n";
   $strain_compatibility_content .= "\t\t<th>Agreeing Calls</th>\n";
-  $strain_compatibility_content .= "\t\t<th>Disagreeing calls</th>\n";
+  $strain_compatibility_content .= "\t\t<th>Disagreeing Calls</th>\n";
   $strain_compatibility_content .= "\t\t<th>Compatibility Percentage</th>\n";  
   $strain_compatibility_content .= "\t</tr>\n";
   $strain_compatibility_content .= "</tbody>\n";
   $strain_compatibility_content .= "<tbody>\n";
 
-  warn "\n\nContents of \%strain_scores:\n";
-
-
-    foreach my $number(sort {$a<=>$b} keys %strain_scores){
+  # warn "\n\nContents of \%strain_scores:\n";
+  foreach my $number(sort {$a<=>$b} keys %strain_scores){
     	last if ($count == $candidates);
         $strain_compatibility_content .= "\t<tr>\n";
         $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{strain}</td>\n";
@@ -200,27 +139,120 @@ while (@reStrainingOrder_summary_reports){
     	++$count;
     } 
 
-     $strain_compatibility_content .= "</tbody>\n";
-    warn "$strain_compatibility_content\n";
+    $strain_compatibility_content .= "</tbody>\n";
+    # warn "$strain_compatibility_content\n";
 
+    # injecting this into the HTML template
     $doc =~ s/\{\{strain_compatibility_content\}\}/$strain_compatibility_content/g;
 
-    ### Processing  Hybrid Scores Section
+
+    ################################################
+    ### PROCESSING SINGLE STRAIN COMPATIBILITY CONFIDENCE
     $count = 0;
-    warn "\n\nContents of \%hybrid_scores:\n";
-    foreach my $number(sort {$a<=>$b} keys %hybrid_scores){
-    	last if ($count == $candidates);
-    	warn "$number\t$hybrid_scores{$number}->{hybrid}\t$hybrid_scores{$number}->{agree}\t$hybrid_scores{$number}->{disagree}\t$hybrid_scores{$number}->{percent}\n";
-    	++$count;
+  my $strain_compatibility_confidence;
+
+  $strain_compatibility_confidence .= "<tbody>\n";
+  $strain_compatibility_confidence .= "\t<tr>\n";
+  $strain_compatibility_confidence .= "\t\t<th>Strain</th>\n";
+  $strain_compatibility_confidence .= "\t\t<th>Agreeing Calls</th>\n";
+  $strain_compatibility_confidence .= "\t\t<th>Compatibility Percentage</th>\n";  
+  $strain_compatibility_confidence .= "\t</tr>\n";
+  $strain_compatibility_confidence .= "</tbody>\n";
+  $strain_compatibility_confidence .= "<tbody>\n";
+
+  # warn "\n\nContents of \%strain_scores:\n";
+  foreach my $number(sort {$a<=>$b} keys %strain_scores){
+      last if ($count == $candidates);
+        $strain_compatibility_confidence .= "\t<tr>\n";
+        $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{strain}</td>\n";
+        $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{agree}</td>\n";
+        $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{percent}</td>\n";
+        $strain_compatibility_confidence .= "\t</tr>\n";      
+        # warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
+      ++$count;
     } 
 
+    $strain_compatibility_confidence .= "</tbody>\n";
+    # warn "$strain_compatibility_confidence\n";
+
+    # injecting this into the HTML template
+    $doc =~ s/\{\{strain_compatibility_confidence\}\}/$strain_compatibility_confidence/g;
+
+    ##########################################
+    ### PROCESSING HYBRID COMPATIBILITY SCORES
+
+    my $hybrid_compatibility_content;
+
+    $hybrid_compatibility_content .= "<tbody>\n";
+    $hybrid_compatibility_content .= "\t<tr>\n";
+    $hybrid_compatibility_content .= "\t\t<th>Potential Hybrid</th>\n";
+    $hybrid_compatibility_content .= "\t\t<th>Agreeing Calls</th>\n";
+    $hybrid_compatibility_content .= "\t\t<th>Disagreeing Calls</th>\n";
+    $hybrid_compatibility_content .= "\t\t<th>Compatibility Percentage</th>\n";  
+    $hybrid_compatibility_content .= "\t</tr>\n";
+    $hybrid_compatibility_content .= "</tbody>\n";
+    $hybrid_compatibility_content .= "<tbody>\n";
+
+  
     $count = 0;
- 	warn "\n\nContents of \%allele_ratios:\n";
-    foreach my $number(sort {$a<=>$b} keys %allele_ratios){
-    	last if ($count == $candidates);
-    	warn "$number\t$allele_ratios{$number}->{strain1}\t$allele_ratios{$number}->{strain2}\t$allele_ratios{$number}->{strain1_count}\t$allele_ratios{$number}->{strain2_count}\t$allele_ratios{$number}->{strain1_percent}\t$allele_ratios{$number}->{strain2_percent}\n";
-    	++$count;
+    # warn "\n\nContents of \%hybrid_scores:\n";
+    foreach my $number(sort {$a<=>$b} keys %hybrid_scores){
+      	last if ($count == $candidates);
+        $hybrid_compatibility_content .= "\t<tr>\n";
+        $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{hybrid}</td>\n";
+        $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{agree}</td>\n";
+        $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{disagree}</td>\n";
+        $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{percent}</td>\n";
+        $hybrid_compatibility_content .= "\t</tr>\n";    
+      	# warn "$number\t$hybrid_scores{$number}->{hybrid}\t$hybrid_scores{$number}->{agree}\t$hybrid_scores{$number}->{disagree}\t$hybrid_scores{$number}->{percent}\n";
+      	++$count;
     } 
+
+    $hybrid_compatibility_content .= "</tbody>\n";
+    # warn "$hybrid_compatibility_content\n";
+
+    # injecting this into the HTML template
+    $doc =~ s/\{\{hybrid_compatibility_content\}\}/$hybrid_compatibility_content/g;
+
+  
+    ####################################
+    ### PROCESSING ALLELE RATIOS SECTION
+
+    my $allelic_ratio_content;
+
+    $allelic_ratio_content .= "<tbody>\n";
+    $allelic_ratio_content .= "\t<tr>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain1</th>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain1 Calls</th>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain1 %</th>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain2</th>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain2 Calls</th>\n";
+    $allelic_ratio_content .= "\t\t<th>Strain2 %</th>\n";  
+    $allelic_ratio_content .= "\t</tr>\n";
+    $allelic_ratio_content .= "</tbody>\n";
+    $allelic_ratio_content .= "<tbody>\n";
+
+    $count = 0;
+ 	  # warn "\n\nContents of \%allele_ratios:\n";
+    foreach my $number(sort {$a<=>$b} keys %allele_ratios){
+    	   last if ($count == $candidates);
+    	   # warn "$number\t$allele_ratios{$number}->{strain1}\t$allele_ratios{$number}->{strain2}\t$allele_ratios{$number}->{strain1_count}\t$allele_ratios{$number}->{strain2_count}\t$allele_ratios{$number}->{strain1_percent}\t$allele_ratios{$number}->{strain2_percent}\n";
+    	   ++$count;
+          $allelic_ratio_content .= "\t<tr>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain1}</td>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain1_count}</td>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain1_percent}</td>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain2}</td>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain2_count}</td>\n";
+          $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain2_percent}</td>\n";
+          $allelic_ratio_content .= "\t</tr>\n";   
+    } 
+
+     $allelic_ratio_content .= "</tbody>\n";
+    # warn "$allelic_ratio_content\n";
+
+      # injecting this into the HTML template
+     $doc =~ s/\{\{allelic_ratio_content\}\}/$allelic_ratio_content/g;
 
   	warn "="x110,"\n\n\n";
   	$verbose and sleep(3);
