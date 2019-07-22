@@ -11,12 +11,16 @@
                           font-family: Arial, sans-serif;
                           font-size:14px;
                           padding:0 20px 20px;
+						  height: 100%;
                   }
-                  .container {
+				  html{
+					  height: 100%;
+					  margin: 0px;
+				  }
+				  .container {
                           margin:0 auto;
                           max-width:1200px;
-                  }
-                  .header h1,
+                  }                  
                   .header img {
                           float:left;
                   }
@@ -55,13 +59,14 @@
                         height:0;
                   }
 				  .bargraph {
-						width:600px;
+						width: 100%;
+						height: 100%;						
 				  }
 				  .plotly_table {
                          float:right;
                          width:600px;
                          max-width:100%;
-                                    }
+                    }
                   .data {
                           float:left;
                           width:500px;
@@ -119,7 +124,7 @@
 					margin-bottom: 20px;
 					border-radius: 4px;
                 }
-				.error-msg h3 { margin: 0; }
+				.error-msg h3  { margin: 0; }
 				.error-msg pre { margin: 0; }
           </style>
 
@@ -168,24 +173,6 @@
 			
 	<hr>
 
-	<h2>Strain Compatibility Confidence Level</h2>
-	<table>
-		<tbody>
-			<tr>
-				<td style="vertical-align:top">
-					<table class="data">
-						{{strain_compatibility_confidence}}
-					</table>			
-				</td>
-				<td>
-					<div id="Confidence_Plot" class="bargraph"> <!--Plotly chart will be drawn inside this DIV --> </div>
-				</td>
-			</tr>
-		</tbody>
-	</table>
-	
-	<hr>
-	
 	<h2>Potential Hybrid Strains - Compatibility Scores</h2>
 	<table>
 		<tbody>
@@ -196,7 +183,7 @@
 					</table>			
 				</td>
 				<td>
-					<div id="Strand_Plot" class="bargraph"> <!--Plotly chart will be drawn inside this DIV --> </div>
+					<div id="Hybrid_Allelic_Ratio_Plot" class="bargraph"> <!--Plotly chart will be drawn inside this DIV --> </div>
 				</td>
 			</tr>
 		</tbody>
@@ -204,285 +191,95 @@
 
 	<hr>
 
-	<!-- This section is optional -->
-	<h2>Potential Hybrid Strains - Allelic Ratios</h2>
-	<table>
-		<tbody>
-			<tr>
-				<td style="vertical-align:top">
-					<table class="data">
-						{{allelic_ratio_content}}
-					</table>			
-				</td>
-				<td>
-					<div id="Strand_Plot" class="bargraph"> <!--Plotly chart will be drawn inside this DIV --> </div>
-				</td>
-			</tr>
-		</tbody>
-	</table>
-
+	
 
 	<!-- This section is optional -->
 
 	
 	<!-- ######################### PLOT.LY plotting code below ################################################################# -->
 
-	<!-- Alignment Stats Plot -->	
-	<script>
-		<!-- JAVASCRIPT CODE GOES HERE -->
-		
-		var data = [{
-			values: [{{alignment_stats_plotly}}],
-			labels: ['Unique Alignments', 'No Alignment', 'Multiple Alignments', 'No Genomic Sequence'],
-			type: 'pie',
-			name: 'Alignment Statistics',
-			hoverinfo: 'label+value+percent',
-			direction: 'clockwise',
-			pull: [0.05,0,0,0],
-			sort: false,
-			marker: {
-    			colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'],
-    			line:{
-					width: 1,
-					color:'black',
-				},
-  			},
-		}];
-
-		var layout = {
-			margin: {
-			    l: 50,
-			    r: 0,
-			    b: 0,
-			    t: 50,
-			    pad: 0,
-			},
-			font: {
-        		size: 16,
-      		},
-			<!-- paper_bgcolor: '#7f7f7f', --> 
-  			<!-- plot_bgcolor: '#c7c7c7',  -->
-			height: 450,
-			width:  600,
-			showlegend: true,
-  			legend: {
-    			x: 0.9,
-    			y: 1.05,
-  				font: {
-        			size: 14,
-        			color: 'black',
-      			},	
-  			},
-		};
-
-		Plotly.newPlot('Strain_Scores_Report', data, layout, {displaylogo: false}, {modeBarButtonsToRemove: ['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines']},
-					);
-	</script>
-
-	<!-- Duplication Plot (Donut Plot)-->	
-	<script>
-		
-		var data = [{
-			values: [{{duplication_stats_plotly}}],
-			labels: ['Unique Alignments', 'Duplicate Alignments' ],
-			textinfo: ['Unique Alignments', 'Duplicate Alignments' ],
-			name: 'Degree of Duplication',
-			hoverinfo: 'label+value+percent',
-			hole: .3,	
-			type: 'pie',
-			direction: 'clockwise',
-			pull: [0.05,0],
-			sort: false,
-			marker: {
-				line:{
-					width: 1,
-					color:'black',
-				},
-				colors: ['#0d233a', '#2f7ed8'],
-			}
-	 	}];
-
-		var layout = {
-			<!-- paper_bgcolor: '#7f7f7f', -->
-  			<!-- plot_bgcolor: '#c7c7c7',  -->
-  			font: {
-        		size: 16,
-        		color: 'white',
-      		},
-      		margin: {
-			    l: 0,
-			    r: 0,
-			    b: 0,
-			    t: 0,
-			    pad: 0,
-			},
-			showlegend: true,
-  			legend: {
-    			x: .25,
-    			y: -0.05,
-  			        "orientation": "h",
-  				font: {
-        			size: 14,
-        			color: 'black',
-      			},	
-  			},
-		};
-
-		Plotly.newPlot('Duplication_Plot', data, layout, {displaylogo: false}, {modeBarButtonsToRemove: ['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines']});
-	</script>
-
-	<!-- Cytosine Methylation Plot -->
+	<!-- Strain Scores Plot -->
 	<script>
 		var data = [
 		  {
-			x: ['CpG context', 'CHG context', 'CHH context'],
-			y: [{{cytosine_methylation_plotly}}],
+			y: [{{strain_scores_strains_plotly}}],
+			x: [{{strain_scores_percentages_plotly}}],
 			type: 'bar',
 			marker: {
-				color: ['#0d233a', '#2f7ed8','#2f7ed8'],
-	 			<!-- colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'], -->
+				<!-- color: ['#0d233a', '#2f7ed8','#2f7ed8'], -->
+	 			colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'], 
    				line: {
      				color: 'black',
       				width: 1
     			},
-   			}	
-		  }
+   			},
+			orientation: 'h'
+			}
 		];
 		
 		var layout = {
 			<!-- paper_bgcolor: '#7f7f7f', -->
   			<!-- plot_bgcolor: '#c7c7c7',  -->
-  			width: 600,
+  			height: 1000,
+			width: 700,
+			
   			margin: {
-			    l: 100,
+			    l: 250,
 			    r: 50,
 			    b: 50,
-			    t: 50,
+			    t: 0,
 			    pad: 0,
 			},
-			yaxis: {
+			xaxis: {
+				automargin: true,
 				range: [0, 100],
-				title:' % Methylation',
-			}
-		};
-
-		Plotly.newPlot('Cytosine_Methylation', data, layout, {displaylogo: false}, {modeBarButtonsToRemove: ['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines']});
-	</script>
-
-	<!-- Cytosine Methylation Plot post duplication-->
-	<script>
-
-		var data = [
-		  	{
-				x: ['CpG context', 'CHH context', 'CHG context'],
-				y: [{{cytosine_methylation_post_duplication_plotly}}],
-				type: 'bar',
-				marker: {
-					color: ['#0d233a', '#2f7ed8','#2f7ed8'],
-	 				line: {
-     					color: 'black',
-      					width: 1
-    				},
-				}	
-		  	}
-		];
-
-		var layout = {
-			width: 600,
-			<!-- paper_bgcolor: '#7f7f7f', -->
-  			<!-- plot_bgcolor: '#c7c7c7',  -->
-  			margin: {
-			    l: 100,
-			    r: 50,
-			    b: 50,
-			    t: 50,
-			    pad: 0,
+				title:'Strain Compatibility [in %]',
+				titlefont: {
+	  				size: 18, 
+	  			},
 			},
-			yaxis: {
-				range: [0, 100],
-				title:' % Methylation',
+			yaxis:{
+				autorange: "reversed",
+				automargin: true,
 			}
+		
 		};
+		var optionsStrains= {
+                        displaylogo: false,
+						responsive: true,
+						modeBarButtonsToRemove:
+							['zoom2d',
+							'pan',
+							'pan2d',
+							'resetScale2d',
+							'hoverClosestCartesian',
+							'hoverCompareCartesian',
+							'toggleSpikelines']
+                        ,
+                        toImageButtonOptions: {
+							filename: 'reStrainingOrder Strain Summary',
+							width: 800,  <!-- width: stacksDivPercentage._fullLayout.width, height: stacksDivPercentage._fullLayout.height -->
+							height: 600,
+							format: 'png'
+                        }
+                };
 
-		Plotly.newPlot('Cytosine_Methylation_postDuplication', data, layout, 
-					{displaylogo: false}, 
-					{modeBarButtonsToRemove: 
-					['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines']
-					}
-		);
+		Plotly.newPlot('Strain_Scores_Report', data, layout, optionsStrains);
+		
 	</script>
 
-	<!-- Strand Alignment Plot-->
-	<script>
-		var data = [
-		  {
-			x: ['OT', 'CTOT', 'CTOB', 'OB'],
-			<!-- y: [49, 1, 2, 48], hardcoded for testing purposes -->
-			y: [{{strand_alignment_plotly}}],
-			type: 'bar',
-			marker: {
-				color: ['#0d233a', '#2f7ed8','#2f7ed8','#0d233a'],
-	 			line: {
-     				color: 'black',
-      				width: 1
-    			},
-   			}	
-		  }
-		];
-
-		var layout = {
-			<!-- paper_bgcolor: '#7f7f7f',  -->
-  			<!-- plot_bgcolor: '#c7c7c7',   -->
-  			margin: {
-			    l: 100,
-			    r: 50,
-			    b: 50,
-			    t: 15,
-			    pad: 5,
-			},
-			yaxis: {
-				title: 'Number of Alignments',
-				zeroline:true, 
-				<!-- hoverformat: '.2r', -->
-			}
-		};
 
 
-		Plotly.newPlot('Strand_Plot', data, layout, {displaylogo: false}, {modeBarButtonsToRemove: ['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines']});
-	</script>
 
-	<!-- Nucleotide Stats Plot-->
+	
+	<!-- Hybrid Scores Plot including Allelic Ratios-->
 	<script>
 	  	var trace1 = {
-	  		x: [{{nucleo_sample_x}}], 
-	  		y: [{{nucleo_sample_y}}],
-	  
-	  		name: 'Percent Sample', 
+	  		x: [{{hybrid_percentages_strain1_plotly}}], 
+	  		y: [{{hybrid_compatibility_strains_plotly}}],
+			  
+			
+	  		name: 'Strain1', 
 			marker: {
 				color: '#2f7ed8',
 				line:{
@@ -496,12 +293,10 @@
 	  
 		 
 		var trace2 = {
-	  		<!-- x: [20, 14, 23, 7], testing -->
-	  		<!-- y: ['A', 'T', 'C', 'G'], testing -->
-	 		x: [{{nucleo_genomic_x}}], 
-	  		y: [{{nucleo_genomic_y}}],
+	  		x: [{{hybrid_percentages_strain2_plotly}}], 
+	  		y: [{{hybrid_compatibility_strains_plotly}}],
 
-	  		name: 'Percent Genomic', 
+	  		name: 'Strain2', 
 	  		marker: {
 	  			color: '#0d233a',
 	  			line:{
@@ -516,18 +311,24 @@
 	  	var data = [trace1, trace2];
 	  
 	  	var layout = {
-	  		height: 700,
-	  		width:  700,
- 
+	  		width:  600,
+			height: 900,
+			
 	  		xaxis: {
-	  			tickfont: {
+	  			automargin: true,
+				tickfont: {
 	  				size: 14, 
-	  			}
-	  		}, 
+	  			},
+				range: [0, 100],
+				title:'Strain Compatibility [in %]',
+				titlefont: {
+	  				size: 18, 
+	  			},
+			}, 
 	  		yaxis: {
-	  			title: '(Di-)Nucleotide',
+				automargin: true,
 	  			autorange: 'reversed',
-	  			titlefont: {
+				titlefont: {
 	  				size: 18, 
 	  			},
 	  			tickfont: {
@@ -535,337 +336,56 @@
 	  				size: 14, 
 		  		}
 	  		}, 
+			margin: {
+			    l: 0,
+			    r: 20,
+			    b: 100,
+			    t: 0,
+			    pad: 0,
+			},
 	  		showlegend: true,
 	  		legend: {
 	  			"orientation": "h",
-	  			x: 0.15, 
-	  			y: -0.05, 
+	  			x: 0.2, 
+	  			y: 1.05, 
+				traceorder: 'normal',
 	  			font: {
         			size: 16,
         			color: 'black',
       			},	
 			},
-	  
-	  		barmode: 'group', 
+			
+	   		barmode: 'stack', 
 	  		bargap: 0.15, 
 	  		bargroupgap: 0.1
 	  	};
 	  
-	  	Plotly.newPlot('nucleo_plot', data, layout, {displaylogo: false},{modeBarButtonsToRemove: ['toImage',
-					'sendDataToCloud',
-					'resetScale2d',
-					'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'zoom',
-                    'toggleSpikelines']});
+		var optionsHybrids= {
+                        displaylogo: false,
+						
+						modeBarButtonsToRemove:
+							['zoom2d',
+							'zoom',
+							'pan',
+							'sendDataToCloud',
+							'pan2d',
+							'boxSelect',
+							'resetScale2d',
+							'hoverClosestCartesian',
+							'hoverCompareCartesian',
+							'toggleSpikelines']
+                        ,
+                        toImageButtonOptions: {
+							filename: 'reStrainingOrder Hybrid Summary',
+							width: 600,  <!-- width: stacksDivPercentage._fullLayout.width, height: stacksDivPercentage._fullLayout.height -->
+							height: 900,
+							format: 'png'
+                        }
+                };
+
+	  	Plotly.newPlot('Hybrid_Allelic_Ratio_Plot', data, layout, optionsHybrids);
+
 	
-	</script>
-
-	<!-- M-bias Plot 1 -->
-	<script>
-		var trace1 = {
-	  		<!-- x: [1, 2, 3,4,5,6,7,8,9,10], just for testing -->
-	  		<!-- y: [40, 50, 60,50,35,40,45,61,55,33], just for testing -->
-	  		<!-- colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'], -->
-	  		<!-- colors: [ '#CCF0E1','#EDD3A8','#69798A','#21BCA2','#F29D13','#0d233a','#f28f43','#77a1e5','#c42525','#a6c96a'], -->
-	  		x: [{{mbias1_CpG_meth_x}}],
-	  		y: [{{mbias1_CpG_meth_y}}],
-	  		name: 'CpG methylation',
-	  		line: {
-	  			width: 5,
-	  			color: '#0d233a',
-	  		},
-	  		type: 'scatter',
-	  		yaxis: 'y',
-		};
-
-		var trace2 = {
-			x: [{{mbias1_CHG_meth_x}}],
-	  		y: [{{mbias1_CHG_meth_y}}],
-	  		name: 'CHG methylation',
-	  		yaxis: 'y',
-	  		type: 'scatter',
-	  		line: {
-	  			width: 5,
-	  			color: '#F29D13',
-	  		},
-		};
-
-		var trace3 = {
-			x: [{{mbias1_CHH_meth_x}}],
-	  		y: [{{mbias1_CHH_meth_y}}],
-	  		name: 'CHH methylation',
-	  		yaxis: 'y',
-	  		type: 'scatter',
-	  		line: {
-	  			width: 5,
-	  			color: '#21BCA2',
-	  		},
-		};
-
-		var trace4 = {
-	  		
-	  		x: [{{mbias1_CpG_coverage_x}}],
-	  		y: [{{mbias1_CpG_coverage_y}}],
-	  		name: 'CpG total calls',
-	  		type: 'scatter',
-	  		yaxis: 'y2',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#0d233a',
-	  		},
-		};
-
-		var trace5 = {
-			x: [{{mbias1_CHG_coverage_x}}],
-	  		y: [{{mbias1_CHG_coverage_y}}],
-	  		name: 'CHG total calls',
-	  		yaxis: 'y2',
-	  		type: 'scatter',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#F29D13',
-	  		},
-		};
-
-		var trace6 = {
-			x: [{{mbias1_CHH_coverage_x}}],
-	  		y: [{{mbias1_CHH_coverage_y}}],
-	  		name: 'CHH total calls',
-	  		yaxis: 'y2',
-	  		type: 'scatter',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#21BCA2',
-	  		},
-		};
-
-		var data = [trace1, trace2, trace3, trace4, trace5, trace6];
-
-		var layout = {
-	  		title: 'Read 1',
-	  		titlefont: {
-			      	size: 24,
-			      	color: 'black'
-			},
-	  		yaxis: {
-	  			title: '% Methylation',
-	  			range: [0, 100],
-	  			visible: true,
-	  			titlefont: {
-			      	size: 18,
-			      	color: 'black'
-			    },
-			    showline: true,
-	  		},
-	  		width: 1200,
-	  		height: 600,
-	  		yaxis2: {
-	    		title: '# Methylation Calls',
-	    		tickfont: {color: 'black'},
-	    		overlaying: 'y',
-	    		side: 'right',
-	    		separatethousands: 'y',
-	    		zeroline: false,
-	    		visible: true,
-	    		showgrid: false,
-	    		showline: true,
-	    		titlefont: {
-			      	size: 18,
-			      	color: 'black'
-			    },
-	  		},
-	  		xaxis: {
-	  			title: 'Position in Read [bp]',
-	  			titlefont: {
-			      	size: 18,
-			      	color: 'black'
-			    },
-			    showline: true,
-	  		},
-	  		showlegend: true,
-		  	legend: {
-		    	x: 0.85,
-		    	y: 1.2
-		  	},
-		};
-
-		var options = {
-			displaylogo: false,
-			modeBarButtonsToRemove:
-				['zoom2d',
-				'sendDataToCloud',				
-				'pan', 
-				'pan2d',
-				'resetScale2d',
-				'hoverClosestCartesian',
-				'hoverCompareCartesian',
-				'toggleSpikelines']
-			,
-			toImageButtonOptions: {
-				filename: 'Bismark M-bias Read 1',
-				width: 1600,
-				height: 600,
-				format: 'png'
-			}
-		};
-		
-		Plotly.newPlot('mbias1_plot', data, layout, options);
-	</script>
-
-	<!-- M-bias Plot 2-->
-	<script>
-		var trace1 = {
-	  		<!-- x: [1, 2, 3,4,5,6,7,8,9,10], just for testing -->
-	  		<!-- y: [40, 50, 60,50,35,40,45,61,55,33], just for testing -->
-
-	  		x: [{{mbias2_CpG_meth_x}}],
-	  		y: [{{mbias2_CpG_meth_y}}],
-	  		name: 'CpG methylation',
-	  		type: 'scatter',
-	  		yaxis: 'y',
-	  		line: {
-	  			width: 5,
-	  			color: '#0d233a',
-	  		},
-		};
-
-		var trace2 = {
-			x: [{{mbias2_CHG_meth_x}}],
-	  		y: [{{mbias2_CHG_meth_y}}],
-	  		name: 'CHG methylation',
-	  		yaxis: 'y',
-	  		type: 'scatter',
-	  		line: {
-	  			width: 5,
-	  			color: '#F29D13',
-	  		},
-		};
-
-		var trace3 = {
-			x: [{{mbias2_CHH_meth_x}}],
-	  		y: [{{mbias2_CHH_meth_y}}],
-	  		name: 'CHH methylation',
-	  		yaxis: 'y',
-	  		type: 'scatter',
-	  		line: {
-	  			width: 5,
-	  			color: '#21BCA2',
-	  		},
-		};
-
-		var trace4 = {		
-	  		x: [{{mbias2_CpG_coverage_x}}],
-	  		y: [{{mbias2_CpG_coverage_y}}],
-	  		name: 'CpG total calls',
-	  		type: 'scatter',
-	  		yaxis: 'y2',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#0d233a',
-	  		},
-		};
-
-		var trace5 = {
-			x: [{{mbias2_CHG_coverage_x}}],
-	  		y: [{{mbias2_CHG_coverage_y}}],
-	  		name: 'CHG total calls',
-	  		yaxis: 'y2',
-	  		type: 'scatter',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#F29D13',
-	  		},
-		};
-
-		var trace6 = {
-			x: [{{mbias2_CHH_coverage_x}}],
-	  		y: [{{mbias2_CHH_coverage_y}}],
-	  		name: 'CHH total calls',
-	  		yaxis: 'y2',
-	  		type: 'scatter',
-	  		opacity: 0.4,
-	  		line: {
-	  			width: 1.5,
-	  			color: '#21BCA2',
-	  		},
-		};
-
-		var data = [trace1, trace2, trace3, trace4, trace5, trace6];
-
-		var layout = {
-	  		title: 'Read 2',
-	  		titlefont: {
-			      	size: 24,
-			      	color: 'black'
-			},
-	  		yaxis: {
-	  			title: '% Methylation',
-	  			range: [0, 100],
-	  			titlefont: {
-			      	size: 18,
-			      	color: 'black'
-			    },
-			    showline: true,
-	  		},
-	  		width: 1200,
-	  		height: 600,
-	  		yaxis2: {
-	    		title: '# Methylation Calls',
-	    		overlaying: 'y',
-	    		side: 'right',
-	    		separatethousands: 'y',
-	    		zeroline: false,
-	    		showgrid: false,
-	    		showline: true,
-	    		titlefont: {
-			      	size: 18,
-			      	color: 'black'
-			    },
-	  		},
-	  		xaxis: {
-	  			title: 'Position in Read [bp]',
-	  			showline: true,	
-	  			titlefont: {
-			      size: 18,
-			      color: 'black'
-			    },
-	  		},
-	  		showlegend: true,
-		  	legend: {
-		    	x: 0.85,
-		    	y: 1.2,
-		  	},
-		};
-
-		
-		var options2 = {
-			displaylogo: false,
-			modeBarButtonsToRemove:
-				['zoom2d',
-				'sendDataToCloud',				
-				'pan', 
-				'pan2d',
-				'resetScale2d',
-				'hoverClosestCartesian',
-				'hoverCompareCartesian',
-				'toggleSpikelines']
-			,
-			toImageButtonOptions: {
-				filename: 'Bismark M-bias Read 2',
-				width: 1600,
-				height: 600,
-				format: 'png'
-			}
-		};
-		
-		Plotly.newPlot('mbias2_plot', data, layout, options2);
-
 	</script>
 
 	<footer>

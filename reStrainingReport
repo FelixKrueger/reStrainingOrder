@@ -115,6 +115,8 @@ while (@reStrainingOrder_summary_reports){
 
  	my $count = 0;
 	my $strain_compatibility_content;
+  my $strain_scores_strains_plotly;
+  my $strain_scores_percentages_plotly;
 
   $strain_compatibility_content .= "<tbody>\n";
   $strain_compatibility_content .= "\t<tr>\n";
@@ -128,22 +130,32 @@ while (@reStrainingOrder_summary_reports){
 
   # warn "\n\nContents of \%strain_scores:\n";
   foreach my $number(sort {$a<=>$b} keys %strain_scores){
-    	last if ($count == $candidates);
         $strain_compatibility_content .= "\t<tr>\n";
         $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{strain}</td>\n";
         $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{agree}</td>\n";
         $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{disagree}</td>\n";
         $strain_compatibility_content .= "\t\t<td>$strain_scores{$number}->{percent}</td>\n";
-        $strain_compatibility_content .= "\t</tr>\n";      
+        $strain_compatibility_content .= "\t</tr>\n"; 
+
+        $strain_scores_strains_plotly     .= " '$strain_scores{$number}->{strain}' ,";    
+        $strain_scores_percentages_plotly .= " $strain_scores{$number}->{percent} ,";  
+
       	# warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
     	++$count;
     } 
 
+    # remove trailing comma
+    $strain_scores_strains_plotly =~ s/,$//;
+    $strain_scores_percentages_plotly =~ s/,$//;
+
+    # warn "$strain_scores_strains_plotly\n$strain_scores_percentages_plotly\n"; sleep(5);
     $strain_compatibility_content .= "</tbody>\n";
     # warn "$strain_compatibility_content\n";
 
     # injecting this into the HTML template
     $doc =~ s/\{\{strain_compatibility_content\}\}/$strain_compatibility_content/g;
+    $doc =~ s/\{\{strain_scores_strains_plotly\}\}/$strain_scores_strains_plotly/g;
+    $doc =~ s/\{\{strain_scores_percentages_plotly\}\}/$strain_scores_percentages_plotly/g;
 
 
     ################################################
@@ -154,7 +166,7 @@ while (@reStrainingOrder_summary_reports){
   $strain_compatibility_confidence .= "<tbody>\n";
   $strain_compatibility_confidence .= "\t<tr>\n";
   $strain_compatibility_confidence .= "\t\t<th>Strain</th>\n";
-  $strain_compatibility_confidence .= "\t\t<th>Agreeing Calls</th>\n";
+  $strain_compatibility_confidence .= "\t\t<th>Covered Positions</th>\n";
   $strain_compatibility_confidence .= "\t\t<th>Compatibility Percentage</th>\n";  
   $strain_compatibility_confidence .= "\t</tr>\n";
   $strain_compatibility_confidence .= "</tbody>\n";
@@ -165,7 +177,7 @@ while (@reStrainingOrder_summary_reports){
       last if ($count == $candidates);
         $strain_compatibility_confidence .= "\t<tr>\n";
         $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{strain}</td>\n";
-        $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{agree}</td>\n";
+        $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{covered}</td>\n";
         $strain_compatibility_confidence .= "\t\t<td>$strain_scores{$number}->{percent}</td>\n";
         $strain_compatibility_confidence .= "\t</tr>\n";      
         # warn "$number\t$strain_scores{$number}->{strain}\t$strain_scores{$number}->{covered}\t$strain_scores{$number}->{agree}\t$strain_scores{$number}->{disagree}\t$strain_scores{$number}->{percent}\n";
@@ -182,13 +194,20 @@ while (@reStrainingOrder_summary_reports){
     ### PROCESSING HYBRID COMPATIBILITY SCORES
 
     my $hybrid_compatibility_content;
+    my $hybrid_compatibility_strains_plotly;
+    my $hybrid_percentages_strain1_plotly;
+    my $hybrid_percentages_strain2_plotly;
 
     $hybrid_compatibility_content .= "<tbody>\n";
     $hybrid_compatibility_content .= "\t<tr>\n";
     $hybrid_compatibility_content .= "\t\t<th>Potential Hybrid</th>\n";
     $hybrid_compatibility_content .= "\t\t<th>Agreeing Calls</th>\n";
     $hybrid_compatibility_content .= "\t\t<th>Disagreeing Calls</th>\n";
-    $hybrid_compatibility_content .= "\t\t<th>Compatibility Percentage</th>\n";  
+    $hybrid_compatibility_content .= "\t\t<th>Compatibility %</th>\n";
+    
+    $hybrid_compatibility_content .= "\t\t<th>Strain1 %</th>\n";
+    $hybrid_compatibility_content .= "\t\t<th>Strain2 %</th>\n";  
+    
     $hybrid_compatibility_content .= "\t</tr>\n";
     $hybrid_compatibility_content .= "</tbody>\n";
     $hybrid_compatibility_content .= "<tbody>\n";
@@ -203,22 +222,49 @@ while (@reStrainingOrder_summary_reports){
         $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{agree}</td>\n";
         $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{disagree}</td>\n";
         $hybrid_compatibility_content .= "\t\t<td>$hybrid_scores{$number}->{percent}</td>\n";
+        
+        $hybrid_compatibility_content .= "\t\t<td>$allele_ratios{$number}->{strain1_percent}</td>\n";
+        $hybrid_compatibility_content .= "\t\t<td>$allele_ratios{$number}->{strain2_percent}</td>\n";
+        
         $hybrid_compatibility_content .= "\t</tr>\n";    
       	# warn "$number\t$hybrid_scores{$number}->{hybrid}\t$hybrid_scores{$number}->{agree}\t$hybrid_scores{$number}->{disagree}\t$hybrid_scores{$number}->{percent}\n";
       	++$count;
+        
+        # warn "$hybrid_scores{$number}->{hybrid}\t$hybrid_scores{$number}->{percent}\t$allele_ratios{$number}->{strain1_percent}\t$allele_ratios{$number}->{strain2_percent}\n";
+        my $adjusted_s1 = sprintf("%.2f",$hybrid_scores{$number}->{percent} * $allele_ratios{$number}->{strain1_percent} / 100);
+        my $adjusted_s2 = sprintf("%.2f",$hybrid_scores{$number}->{percent} * $allele_ratios{$number}->{strain2_percent} / 100);
+        #warn "$hybrid_scores{$number}->{hybrid}\t$adjusted_s1\t$adjusted_s2\n";        
+        #sleep(1);      	
+        $hybrid_compatibility_strains_plotly .= " '$hybrid_scores{$number}->{hybrid}' ,";    
+        $hybrid_percentages_strain1_plotly   .= " $adjusted_s1 ,"; 
+        $hybrid_percentages_strain2_plotly   .= " $adjusted_s2 ,"; 
     } 
 
     $hybrid_compatibility_content .= "</tbody>\n";
     # warn "$hybrid_compatibility_content\n";
 
-    # injecting this into the HTML template
-    $doc =~ s/\{\{hybrid_compatibility_content\}\}/$hybrid_compatibility_content/g;
+     # remove trailing comma
+    $hybrid_compatibility_strains_plotly =~ s/,$//;
+    $hybrid_percentages_strain1_plotly =~ s/,$//;
+    $hybrid_percentages_strain2_plotly =~ s/,$//;
 
-  
+    # injecting this into the HTML template
+    # For the table
+    $doc =~ s/\{\{hybrid_compatibility_content\}\}/$hybrid_compatibility_content/g;
+    # For the stacked bar graph
+    $doc =~ s/\{\{hybrid_compatibility_strains_plotly\}\}/$hybrid_compatibility_strains_plotly/g;
+    $doc =~ s/\{\{hybrid_percentages_strain1_plotly\}\}/$hybrid_percentages_strain1_plotly/g;
+    $doc =~ s/\{\{hybrid_percentages_strain2_plotly\}\}/$hybrid_percentages_strain2_plotly/g;
+
+    # warn "$hybrid_compatibility_strains_plotly\n$hybrid_percentages_strain1_plotly\n$hybrid_percentages_strain2_plotly\n";
+
     ####################################
     ### PROCESSING ALLELE RATIOS SECTION
 
     my $allelic_ratio_content;
+    my $strain_names_ratio_plotly;
+    my $strain1_ratio_plotly;
+    my $strain2_ratio_plotly;
 
     $allelic_ratio_content .= "<tbody>\n";
     $allelic_ratio_content .= "\t<tr>\n";
@@ -233,7 +279,7 @@ while (@reStrainingOrder_summary_reports){
     $allelic_ratio_content .= "<tbody>\n";
 
     $count = 0;
- 	  # warn "\n\nContents of \%allele_ratios:\n";
+    # warn "\n\nContents of \%allele_ratios:\n";
     foreach my $number(sort {$a<=>$b} keys %allele_ratios){
     	   last if ($count == $candidates);
     	   # warn "$number\t$allele_ratios{$number}->{strain1}\t$allele_ratios{$number}->{strain2}\t$allele_ratios{$number}->{strain1_count}\t$allele_ratios{$number}->{strain2_count}\t$allele_ratios{$number}->{strain1_percent}\t$allele_ratios{$number}->{strain2_percent}\n";
@@ -246,13 +292,27 @@ while (@reStrainingOrder_summary_reports){
           $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain2_count}</td>\n";
           $allelic_ratio_content .= "\t\t<td>$allele_ratios{$number}->{strain2_percent}</td>\n";
           $allelic_ratio_content .= "\t</tr>\n";   
-    } 
 
-     $allelic_ratio_content .= "</tbody>\n";
-    # warn "$allelic_ratio_content\n";
+          $strain_names_ratio_plotly .= " '$allele_ratios{$number}->{strain1}/$allele_ratios{$number}->{strain2}' ,"; 
+          $strain1_ratio_plotly      .= " $allele_ratios{$number}->{strain1_count} ,";    
+          $strain2_ratio_plotly      .= " $allele_ratios{$number}->{strain2_count} ,";
+	   } 
 
-      # injecting this into the HTML template
-     $doc =~ s/\{\{allelic_ratio_content\}\}/$allelic_ratio_content/g;
+	$allelic_ratio_content .= "</tbody>\n";
+	# warn "$allelic_ratio_content\n";
+
+	# remove trailing commas
+	$strain_names_ratio_plotly =~ s/,$//;
+	$strain1_ratio_plotly =~ s/,$//;
+	$strain2_ratio_plotly =~ s/,$//;
+
+	# warn "$strain_names_ratio_plotly\n$strain1_ratio_plotly\n$strain2_ratio_plotly\n";
+
+	# injecting this into the HTML template
+	$doc =~ s/\{\{allelic_ratio_content\}\}/$allelic_ratio_content/g;
+	$doc =~ s/\{\{strain_names_ratio_plotly\}\}/$strain_names_ratio_plotly/g;
+	$doc =~ s/\{\{strain1_ratio_y_plotly\}\}/$strain1_ratio_plotly/g;
+	$doc =~ s/\{\{strain2_ratio_y_plotly\}\}/$strain2_ratio_plotly/g;
 
   	warn "="x110,"\n\n\n";
   	$verbose and sleep(3);
@@ -422,803 +482,10 @@ sub read_rSO_summary_report{
    			}
    		}
    	}
-	
-	
-
-
-
-    ### General Alignment stats
-    if ($_ =~ /^Sequence pairs analysed in total:/ ){                        ## Paired-end
-      (undef,$total_seqs) = split /\t/;
-      print "Total paired seqs: >> $total_seqs <<\n" if ($verbose);
-      $total_seq_text = 'Sequence pairs analysed in total';
-    }
-    elsif ($_ =~ /^Sequences analysed in total:/ ){                          ## Single-end
-      (undef,$total_seqs) = split /\t/;
-      $total_seq_text = 'Sequences analysed in total';
-      print "total single-end seqs >> $total_seqs <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^Bismark report for: (.*) \(version: (.*)\)/){
-      $input_filename = $1;
-      $bismark_version = $2;
-      print "Input filename(s) >> $input_filename <<\n" if ($verbose);
-      print "Bismark version >> $bismark_version <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^Number of paired-end alignments with a unique best hit:/){ ## Paired-end
-      (undef,$unique) = split /\t/;
-      print "Unique PE>> $unique <<\n" if ($verbose);;
-      $unique_text = 'Paired-end alignments with a unique best hit';
-    }
-    elsif($_ =~ /^Number of alignments with a unique best hit from/){        ## Single-end
-      (undef,$unique) = split /\t/;
-      print "Unique SE>> $unique <<\n" if ($verbose);
-      $unique_text = 'Single-end alignments with a unique best hit';
-    }
-
-    elsif($_ =~ /^Sequence pairs with no alignments under any condition:/){  ## Paired-end
-      (undef,$no_aln) = split /\t/;
-      print "No alignment PE >> $no_aln <<\n" if ($verbose);
-      $no_aln_text = 'Pairs without alignments under any condition';
-    }
-    elsif($_ =~ /^Sequences with no alignments under any condition:/){       ## Single-end
-      (undef,$no_aln) = split /\t/;
-      print "No alignments SE>> $no_aln <<\n" if ($verbose);
-      $no_aln_text = 'Sequences without alignments under any condition';
-    }
-
-    elsif($_ =~ /^Sequence pairs did not map uniquely:/){                    ## Paired-end
-      (undef,$multiple) = split /\t/;
-      print "Multiple alignments PE >> $multiple <<\n" if ($verbose);
-      $multiple_text = 'Pairs that did not map uniquely';
-    }
-    elsif($_ =~ /^Sequences did not map uniquely:/){                         ## Single-end
-      (undef,$multiple) = split /\t/;
-      print "Multiple alignments SE >> $multiple <<\n" if ($verbose);
-      $multiple_text = 'Sequences that did not map uniquely';
-    }
-
-    elsif($_ =~ /^Sequence pairs which were discarded because genomic sequence could not be extracted:/){ ## Paired-end
-      (undef,$no_genomic) = split /\t/;
-      print "No genomic sequence PE >> $no_genomic <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Sequences which were discarded because genomic sequence could not be extracted:/){ ## Single-end
-      (undef,$no_genomic) = split /\t/;
-      print "No genomic sequence SE>> $no_genomic <<\n" if ($verbose);
-    }
-
-    ### Context Methylation
-    elsif($_ =~ /^Total number of C/ ){
-      (undef,$total_C_count) = split /\t/;
-      print "Total number C >> $total_C_count <<\n" if ($verbose);
-    }
-
-      elsif($_ =~ /^Total methylated C\'s in CpG context:/ ){
-      (undef,$meth_CpG) = split /\t/;
-      print "meth CpG >> $meth_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in CHG context:/ ){
-      (undef,$meth_CHG) = split /\t/;
-      print "meth CHG >> $meth_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in CHH context:/ ){
-      (undef,$meth_CHH) = split /\t/;
-      print "meth CHH >> $meth_CHH <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in Unknown context:/ ){
-      (undef,$meth_unknown) = split /\t/;
-      print "meth Unknown >> $meth_unknown <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^Total unmethylated C\'s in CpG context:/ or $_ =~ /^Total C to T conversions in CpG context:/){
-      (undef,$unmeth_CpG) = split /\t/;
-      print "unmeth CpG >> $unmeth_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total unmethylated C\'s in CHG context:/ or $_ =~ /^Total C to T conversions in CHG context:/){
-      (undef,$unmeth_CHG) = split /\t/;
-      print "unmeth CHG >> $unmeth_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total unmethylated C\'s in CHH context:/ or $_ =~ /^Total C to T conversions in CHH context:/){
-      (undef,$unmeth_CHH) = split /\t/;
-      print "unmeth CHH >> $unmeth_CHH <<\n"if ($verbose);
-    }
-    elsif($_ =~ /^Total unmethylated C\'s in Unknown context:/ or $_ =~ /^Total C to T conversions in Unknown context:/){
-      (undef,$unmeth_unknown) = split /\t/;
-      print "unmeth Unknown >> $unmeth_unknown <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^C methylated in CpG context:/ ){
-      (undef,$perc_CpG) = split /\t/;
-      $perc_CpG =~ s/%//;
-      print "percentage CpG >> $perc_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in CHG context:/ ){
-      (undef,$perc_CHG) = split /\t/;
-      $perc_CHG =~ s/%//;
-      print "percentage CHG >> $perc_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in CHH context:/ ){
-      (undef,$perc_CHH) = split /\t/;
-      $perc_CHH =~ s/%//;
-      print "percentage CHH >> $perc_CHH <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in Unknown context:/ ){
-      (undef,$perc_unknown) = split /\t/;
-      $perc_unknown =~ s/%//;
-      print "percentage Unknown >> $perc_unknown <<\n" if ($verbose);
-    }
-
-
-    ### Strand Origin
-
-    elsif($_ =~ /^CT\/GA\/CT:/ ){             ## Paired-end
-      (undef,$number_OT) = split /\t/;
-      print "Number OT PE>> $number_OT <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^CT\/CT:/ ){                 ## Single-end
-      (undef,$number_OT) = split /\t/;
-      print "Number OT SE>> $number_OT <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^GA\/CT\/CT:/ ){             ## Paired-end
-      (undef,$number_CTOT) = split /\t/;
-      print "Number CTOT PE >> $number_CTOT <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^GA\/CT:/ ){                 ## Single-end
-      (undef,$number_CTOT) = split /\t/;
-      print "Number CTOT SE >> $number_CTOT <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^GA\/CT\/GA:/ ){             ## Paired-end
-      (undef,$number_CTOB) = split /\t/;
-      print "Number CTOB PE >> $number_CTOB <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^GA\/GA:/ ){                 ## Single-end
-      (undef,$number_CTOB) = split /\t/;
-      print "Number CTOB SE >> $number_CTOB <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^CT\/GA\/GA:/ ){             ## Paired-end
-      (undef,$number_OB) = split /\t/;
-      print "Number OB PE >> $number_OB <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^CT\/GA:/ ){                 ## Single-end
-      (undef,$number_OB) = split /\t/;
-      print "Number OB SE >> $number_OB <<\n" if ($verbose);
-    }
-
-
-  }
-
-
-  if (defined $unique and defined $no_aln and defined $multiple and defined $no_genomic and defined $total_seqs){
-    warn "Got all necessary information, editing HTML report\n"  if ($verbose);
-
-    ### General Alignment Stats
-    $doc =~ s/\{\{unique_seqs\}\}/$unique/g;
-    $doc =~ s/\{\{unique_seqs_text\}\}/$unique_text/g;
-
-    $doc =~ s/\{\{no_alignments\}\}/$no_aln/g;
-    $doc =~ s/\{\{no_alignments_text\}\}/$no_aln_text/g;
-
-    $doc =~ s/\{\{multiple_alignments\}\}/$multiple/g;
-    $doc =~ s/\{\{multiple_alignments_text\}\}/$multiple_text/g;
-
-    $doc =~ s/\{\{no_genomic\}\}/$no_genomic/g;
-
-    $doc =~ s/\{\{total_sequences_alignments\}\}/$total_seqs/g;
-    $doc =~ s/\{\{sequences_analysed_in_total\}\}/$total_seq_text/g;
-
-    $doc =~ s/\{\{filename\}\}/$input_filename/g;
-   
-
-    ### Alignment stats Plot
-    $doc =~ s/\{\{alignment_stats_plotly\}\}/$unique,$no_aln,$multiple,$no_genomic/g;
-
-    ### Strand Origin
-    $doc =~ s/\{\{number_OT\}\}/$number_OT/g;
-    $doc =~ s/\{\{number_CTOT\}\}/$number_CTOT/g;
-    $doc =~ s/\{\{number_CTOB\}\}/$number_CTOB/g;
-    $doc =~ s/\{\{number_OB\}\}/$number_OB/g;
-
-    ### Context Methylation
-    $doc =~ s/\{\{total_C_count\}\}/$total_C_count/g;
-
-    ### Strand Alignment Plot
-    $doc =~ s/\{\{strand_alignment_plotly\}\}/$number_OT,$number_CTOT,$number_CTOB,$number_OB/g;
-
-    unless (defined $perc_CpG){
-      $perc_CpG = 'N/A';
-    }
-    unless (defined $perc_CHG){
-      $perc_CHG = 'N/A';
-    }
-    unless (defined $perc_CHH){
-      $perc_CHH = 'N/A';
-    }
-    unless (defined $perc_unknown){
-      $perc_unknown = 'N/A';
-    }
-
-    ### Unknown sequence context, just for Bowtie 2 alignments
-    my $meth_unknown_inject;
-    my $unmeth_unknown_inject;
-    my $perc_unknown_inject;
-
-    if (defined $meth_unknown){ # if one Unknown context file is present, so should the others
-      $meth_unknown_inject = "     <tr>
-                                <th>Methylated C's in Unknown context</th>
-    				<td>$meth_unknown</td>
-    			</tr>";
-      $unmeth_unknown_inject = "     <tr>
-                                <th>Unmethylated C's in Unknown context</th>
-    				<td>$unmeth_unknown</td>
-    			</tr>";
-      $perc_unknown_inject = "     <tr>
-                                <th>Methylated C's in Unknown context</th>
-    				<td>$perc_unknown%</td>
-    			</tr>";
-    }
-    else{
-      $meth_unknown_inject = $unmeth_unknown_inject = $perc_unknown_inject = '';
-    }
-
-    ### injecting this into the table
-    $doc =~ s/\{\{meth_unknown\}\}/$meth_unknown_inject/g;
-    $doc =~ s/\{\{unmeth_unknown\}\}/$unmeth_unknown_inject/g;
-    $doc =~ s/\{\{perc_unknown\}\}/$perc_unknown_inject/g;
-
-    $doc =~ s/\{\{meth_CpG\}\}/$meth_CpG/g;
-    $doc =~ s/\{\{meth_CHG\}\}/$meth_CHG/g;
-    $doc =~ s/\{\{meth_CHH\}\}/$meth_CHH/g;
-
-    $doc =~ s/\{\{unmeth_CpG\}\}/$unmeth_CpG/g;
-    $doc =~ s/\{\{unmeth_CHG\}\}/$unmeth_CHG/g;
-    $doc =~ s/\{\{unmeth_CHH\}\}/$unmeth_CHH/g;
-
-    $doc =~ s/\{\{perc_CpG\}\}/$perc_CpG/g;
-    $doc =~ s/\{\{perc_CHG\}\}/$perc_CHG/g;
-    $doc =~ s/\{\{perc_CHH\}\}/$perc_CHH/g;
-
-    my ($perc_CpG_graph, $perc_CHG_graph,$perc_CHH_graph,$perc_unknown_graph);
-
-    if ($perc_CpG eq 'N/A'){
-      $perc_CpG_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CpG_graph =  $perc_CpG;
-    }
-
-    if ($perc_CHG eq 'N/A'){
-      $perc_CHG_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CHG_graph =  $perc_CHG;
-    }
-
-    if ($perc_CHH eq 'N/A'){
-      $perc_CHH_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CHH_graph =  $perc_CHH;
-    }
-
-    if ($perc_unknown eq 'N/A'){
-      $perc_unknown_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_unknown_graph =  $perc_unknown;
-    }
-
-    ### Context Methylation Plot
-    $doc =~ s/\{\{cytosine_methylation_plotly\}\}/$perc_CpG_graph,$perc_CHG_graph,$perc_CHH_graph/g;
-  
-  }
-  else{
-    warn "Am I missing something?\n\n";
   }
 
   warn "Complete\n\n";
   return $doc;
-}
-
-
-sub read_deduplication_report{
-
-  my ($dedup_report,$doc) = @_;
-
-  warn "Processing deduplication report $dedup_report ...\n";
-  open (DEDUP,$dedup_report) or die "Couldn't read from file $dedup_report: $!\n\n";
-
-  my $total_seqs;
-  my $dups;
-  my $diff_pos;
-  my $leftover;
-
-  while (<DEDUP>){
-    chomp;
-    if ($_ =~ /^Total number of alignments/){
-      (undef,$total_seqs) = split /\t/;
-      warn "Total number of seqs >> $total_seqs <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total number duplicated/){
-      (undef,$dups) = split /\t/;
-      $dups =~ s/\s.*//; # just need the number, not the percentage
-      warn "Duplicated >> $dups <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Duplicated alignments were found at/){
-      (undef,$diff_pos) = split /\t/;
-      $diff_pos =~ s/\s.*//; # just need the number
-      warn "Different positions >> $diff_pos <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total count of deduplicated leftover sequences: (\d+)/){
-      $leftover = $1;
-      warn "Leftover seqs >> $leftover <<\n" if ($verbose);
-    }
-  }
-
-  unless (defined $leftover){
-    if (defined $dups and defined $total_seqs){
-      $leftover = $total_seqs - $dups;
-    }
-  }
-
-  # Checking if we got all we need
-  if (defined $dups and defined $total_seqs and defined $diff_pos and defined $leftover){
-    # warn "Got all I need!\n\n";
-    $doc =~ s/\{\{seqs_total_duplicates\}\}/$total_seqs/g;
-    $doc =~ s/\{\{unique_alignments_duplicates\}\}/$leftover/g;
-    $doc =~ s/\{\{duplicate_alignments_duplicates\}\}/$dups/g;
-    $doc =~ s/\{\{different_positions_duplicates\}\}/$diff_pos/g;
-    
-    ### Duplication Plot Plot.ly
-    $doc =~ s/\{\{duplication_stats_plotly\}\}/$leftover,$dups/g;
-  }
-  else{
-    warn "Something went wrong... Use --verbose to get a clue...\n";
-    # skipping this plot entirely if values could not be extracted
-    return $doc;
-  }
-  warn "Complete\n\n";
-  return $doc;
-}
-
-
-sub read_nucleotide_coverage_report{
-    
-    my ($nuc_report,$doc) = @_;
-    
-    warn "Processing nucleotide coverage report '$nuc_report' ...\n";
-    open (NUC,$nuc_report) or die "Couldn't read from file $nuc_report: $!\n\n";
-    
-    my %nucs; # storing nucleotides and frequencies
-    my $linecount = 0;
-    
-    while (<NUC>){
-	chomp;
-	$_ =~ s/\r//; # removing carriage returns
-	# warn "$_\n"; sleep(1);
-	my ($element,$count_obs,$observed,$count_exp,$expected,$coverage) = (split /\t/);
-	# warn "$element , $count_obs , $observed , $count_exp , $expected, $coverage\n"; sleep(1);
-	if ($linecount == 0){ # verifying that the data appears to be a Bismark nucleotide coverage report
-	    if ($observed eq 'percent sample'){
-		# warn "Fine, found '$observed'\n";
-	    }
-	    else{
-		die "Expected to find 'percent sample' as entry in line 1, column 3 but found '$observed'. This doesn't look like a Bismark nucleotide coverage report. Please respecify!\n";
-	    }
-	    
-	    if ($expected eq 'percent genomic'){
-		# warn "Fine, found '$expected'\n";
-	    }
-	    else{
-		die "Expected to find 'percent genomic' as entry in line 1, column 5 but found '$expected'. This doesn't look like a Bismark nucleotide coverage report. Please respecify!\n";
-	    }
-	}
-	else{
-	    $nucs{$element}->{obs}->{percent}  = $observed;
-	    $nucs{$element}->{exp}->{percent}  = $expected;
-	    $nucs{$element}->{obs}->{counts}   = $count_obs;
-	    $nucs{$element}->{exp}->{counts}   = $count_exp;
-	    $nucs{$element}->{obs}->{coverage} = $coverage; # coverage of that nucleotide in the sample
-	    warn "Element '$element' observed: $observed\n" if $verbose;
-	    warn "Element '$element' expected: $expected\n" if $verbose;
-	}
-
-	++$linecount;
-
-    }
-
-    # Checking if we got all we need
-    my $looksOK = 1;
-    foreach my $key (keys %nucs){
-	unless ( (defined $nucs{$key}->{obs}) and (defined $nucs{$key}->{exp})){
-	    $looksOK = 0;
-	}
-    }
-    
-    if ($looksOK){
-	warn "Got all necessary information, editing HTML report ...\n" if $verbose;
-	my $minmax = 0;
-	my @y_array;
-	my @x_genomic;
-	my @x_sample;
-
-#	foreach my $key (sort {$a cmp $b} keys %nucs){
-	foreach my $key ('A','T','C','G','AC','CA','TC','CT','CC','CG','GC','GG','AG','GA','TG','GT','TT','TA','AT','AA'){
-	    my $nuc_obs = $nucs{$key}->{obs}->{percent};
-	    my $nuc_exp = $nucs{$key}->{exp}->{percent};
-	    my $counts_obs = $nucs{$key}->{obs}->{counts};
-	    my $counts_exp = $nucs{$key}->{exp}->{counts};
-	    my $cov = $nucs{$key}->{obs}->{coverage};
-
-	    # calculating log2 observed/expected
-	    my $ratio = $nuc_obs/$nuc_exp;
-	    #  my $logratio = sprintf ("%.2f",log($ratio)/log(2));
-	    # if (abs($logratio) > $minmax){
-	    # $minmax = abs($logratio);
-	    # }
-	    warn "$key\tnuc_${key}_obs\t$nuc_obs\tnuc_${key}_exp\t$nuc_exp\tratio: $ratio\n" if $verbose;
-	    
-	    $doc =~ s/\{\{nuc_${key}_p_obs\}\}/$nuc_obs/g;
-	    $doc =~ s/\{\{nuc_${key}_p_exp\}\}/$nuc_exp/g;
-	    $doc =~ s/\{\{nuc_${key}_counts_obs\}\}/$counts_obs/g;
-	    $doc =~ s/\{\{nuc_${key}_counts_exp\}\}/$counts_exp/g;
-	    $doc =~ s/\{\{nuc_${key}_coverage\}\}/$cov/g;
-
-	    # for the plot.ly bargraph
-	    push @y_array,   $key;
-	    push @x_genomic, $nuc_exp;
-	    push @x_sample,  $nuc_obs;
-	}
-
-	my $y_array   = join ("','",@y_array);
-	my $x_sample  = join (" , ",@x_sample);
-	my $x_genomic = join (" , ",@x_genomic);
-
-	$y_array = "'".$y_array."'";
-
-	if ($verbose){
-	    print "Y-array: $y_array\n";
-	    print "X genomic array: $x_genomic\n";
-	    print "X sample array: $x_sample\n";
-	}
-
-	$doc =~ s/\{\{nucleo_sample_x\}\}/$x_sample/g;
-	$doc =~ s/\{\{nucleo_genomic_x\}\}/$x_genomic/g;
-	$doc =~ s/\{\{nucleo_sample_y\}\}/$y_array/g;
-	$doc =~ s/\{\{nucleo_genomic_y\}\}/$y_array/g;
-	# warn "Minimum/maxium ratio was: $minmax\n" if $verbose;
-	# $doc =~ s/\{\{nuc_minmax\}\}/$minmax/g;
-    }
-    else{
-	warn "Something went wrong, skipping this plot entirely... Use --verbose to get a clue...\n";
-	# skipping this plot entirely if values could not be extracted
-	return $doc;
-    }
-
-    warn "Complete\n\n";
-    return $doc;
-}
-
-
-sub read_splitting_report{
-
-  my ($splitting_report,$doc) = @_;
-
-  warn "Processing splitting report $splitting_report ...\n";
-  open (SPLIT,$splitting_report) or die "Couldn't read from file $splitting_report: $!\n\n";
-
-  my $total_seqs;
-
-  my $total_C_count;
-  my ($meth_CpG,$meth_CHG,$meth_CHH,$meth_unknown);
-  my ($unmeth_CpG,$unmeth_CHG,$unmeth_CHH,$unmeth_unknown);
-  my ($perc_CpG,$perc_CHG,$perc_CHH,$perc_unknown);
-
-  while (<SPLIT>){
-    chomp;
-
-    ### Context Methylation
-    if($_ =~ /^Total number of C/ ){
-      (undef,$total_C_count) = split /\t/;
-      print "total calls >> $total_C_count <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^Total methylated C\'s in CpG context:/ ){
-      (undef,$meth_CpG) = split /\t/;
-      print "meth CpG >> $meth_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in CHG context:/ ){
-      (undef,$meth_CHG) = split /\t/;
-      print "meth CHG>> $meth_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in CHH context:/ ){
-      (undef,$meth_CHH) = split /\t/;
-      print "meth CHH >> $meth_CHH <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total methylated C\'s in Unknown context:/ ){
-      (undef,$meth_unknown) = split /\t/;
-      print "meth Unknown >> $meth_unknown <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^Total C to T conversions in CpG context:/ ){
-      (undef,$unmeth_CpG) = split /\t/;
-      print "unmeth CpG >> $unmeth_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total C to T conversions in CHG context:/ ){
-      (undef,$unmeth_CHG) = split /\t/;
-      print "unmeth CHG >> $unmeth_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total C to T conversions in CHH context:/ ){
-      (undef,$unmeth_CHH) = split /\t/;
-      print "unmeth CHH >> $unmeth_CHH <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^Total C to T conversions in Unknown context:/ ){
-      (undef,$unmeth_unknown) = split /\t/;
-      print "unmeth Unknown >> $unmeth_unknown <<\n" if ($verbose);
-    }
-
-    elsif($_ =~ /^C methylated in CpG context:/ ){
-      (undef,$perc_CpG) = split /\t/;
-      $perc_CpG =~ s/%//;
-      print "percentage CpG >> $perc_CpG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in CHG context:/ ){
-      (undef,$perc_CHG) = split /\t/;
-      $perc_CHG =~ s/%//;
-      print "percentage CHG >> $perc_CHG <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in CHH context:/ ){
-      (undef,$perc_CHH) = split /\t/;
-      $perc_CHH =~ s/%//;
-      print "percentage CHH >> $perc_CHH <<\n" if ($verbose);
-    }
-    elsif($_ =~ /^C methylated in Unknown context:/ ){
-      (undef,$perc_unknown) = split /\t/;
-      $perc_unknown =~ s/%//;
-      print "percentage unknown >> $perc_unknown <<\n" if ($verbose);
-    }
-  }
-
-  if (defined $meth_CpG and defined $meth_CHG and defined $meth_CHH and defined $unmeth_CpG and defined $unmeth_CHG and defined $unmeth_CHH){
-    warn "Got all necessary information, editing HTML report ...\n" if ($verbose);
-
-    ### Context Methylation
-    $doc =~ s/\{\{total_C_count_splitting\}\}/$total_C_count/g;
-
-    $doc =~ s/\{\{meth_CpG_splitting\}\}/$meth_CpG/g;
-    $doc =~ s/\{\{meth_CHG_splitting\}\}/$meth_CHG/g;
-    $doc =~ s/\{\{meth_CHH_splitting\}\}/$meth_CHH/g;
-
-    $doc =~ s/\{\{unmeth_CpG_splitting\}\}/$unmeth_CpG/g;
-    $doc =~ s/\{\{unmeth_CHG_splitting\}\}/$unmeth_CHG/g;
-    $doc =~ s/\{\{unmeth_CHH_splitting\}\}/$unmeth_CHH/g;
-
-    unless (defined $perc_CpG){
-      $perc_CpG = 'N/A';
-    }
-    unless (defined $perc_CHG){
-      $perc_CHG = 'N/A';
-    }
-    unless (defined $perc_CHH){
-      $perc_CHH = 'N/A';
-    }
-    unless (defined $perc_unknown){
-      $perc_unknown = 'N/A';
-    }
-
-    ### Unknown sequence context, just for Bowtie 2 alignments
-    my $meth_unknown_inject;
-    my $unmeth_unknown_inject;
-    my $perc_unknown_inject;
-
-    if (defined $meth_unknown){ # if one Unknown context file is present, so should the others
-      $meth_unknown_inject = "     <tr>
-                                <th>Methylated C's in Unknown context</th>
-    				<td>$meth_unknown</td>
-    			</tr>";
-      $unmeth_unknown_inject = "     <tr>
-                                <th>Unmethylated C's in Unknown context</th>
-    				<td>$unmeth_unknown</td>
-    			</tr>";
-      $perc_unknown_inject = "     <tr>
-                                <th>Methylated C's in Unknown context</th>
-    				<td>$perc_unknown%</td>
-    			</tr>";
-    }
-    else{
-      $meth_unknown_inject = $unmeth_unknown_inject = $perc_unknown_inject = '';
-    }
-
-    ### injecting this into the table
-    $doc =~ s/\{\{meth_unknown_splitting\}\}/$meth_unknown_inject/g;
-    $doc =~ s/\{\{unmeth_unknown_splitting\}\}/$unmeth_unknown_inject/g;
-    $doc =~ s/\{\{perc_unknown_splitting\}\}/$perc_unknown_inject/g;
-
-    # for the graph we need to take care that there are no N/A values in the percentage fields
-    my ($perc_CpG_graph, $perc_CHG_graph,$perc_CHH_graph,$perc_unknown_graph);
-
-    if ($perc_CpG eq 'N/A'){
-      $perc_CpG_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CpG_graph =  $perc_CpG;
-    }
-
-    if ($perc_CHG eq 'N/A'){
-      $perc_CHG_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CHG_graph =  $perc_CHG;
-    }
-
-    if ($perc_CHH eq 'N/A'){
-      $perc_CHH_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_CHH_graph =  $perc_CHH;
-    }
-
-    if ($perc_unknown eq 'N/A'){
-      $perc_unknown_graph = 0; # values of 0 won't show in the graph and won't produce errors
-    }
-    else{
-      $perc_unknown_graph =  $perc_unknown;
-    }
-
-    # Context Methylation post Duplication Graph
-    $doc =~ s/\{\{cytosine_methylation_post_duplication_plotly\}\}/$perc_CpG_graph,$perc_CHG_graph,$perc_CHH_graph/g;
-
-    # Table
-    $doc =~ s/\{\{perc_CpG_splitting\}\}/$perc_CpG/g;
-    $doc =~ s/\{\{perc_CHG_splitting\}\}/$perc_CHG/g;
-    $doc =~ s/\{\{perc_CHH_splitting\}\}/$perc_CHH/g;
-  }
-  else{
-    warn "Am I missing something? Try using --verbose to get a clue...\n\n";
-  }
-  warn "Complete\n\n";
-
-  return $doc;
-
-}
-
-
-sub read_mbias_report{
-
-  my ($mbias_report,$doc) = @_;
-
-  warn "Processing M-bias report $mbias_report ...\n";
-  open (MBIAS,$mbias_report) or die "Couldn't read from file $mbias_report: $!\n\n";
-
-  my %mbias_1;
-  my %mbias_2;
-
-  my $context;
-  my $read_identity;
-  my $state = 'single'; # setting this to 'single' if there is no read 2
-
-  while (<MBIAS>){
-      chomp;
-      if ($_ =~ /^(C.{2}) context/){
-        $context = $1;
-
-          if ($_ =~ /R2/){
-	           $read_identity = 2;
-	           $state = 'paired';
-          }
-          else{
-	         $read_identity = 1;
-          }
-
-      # warn "new context is: $context\n";
-      # warn "Read identity is: Read $read_identity\n";
-      }
-      if ($_ =~ /^\d/){
-          my ($pos,$meth,$unmeth,$perc,$coverage) = (split /\t/);
-          if ($read_identity == 1){ 
-              push @{$mbias_1{$context}->{coverage_x}}, $pos;
-              push @{$mbias_1{$context}->{coverage_y}}, $coverage;
-              push @{$mbias_1{$context}->{perc_x}}, $pos; 
-              push @{$mbias_1{$context}->{perc_y}}, $perc;  
-	  }
-	  elsif ($read_identity == 2){
-	      push @{$mbias_2{$context}->{coverage_x}}, $pos;
-	      push @{$mbias_2{$context}->{coverage_y}}, $coverage;
-	      push @{$mbias_2{$context}->{perc_x}}, $pos;
-	      push @{$mbias_2{$context}->{perc_y}}, $perc;
-	  }
-	  else{
-	      warn "read identity was unknown : '$read_identity'\n\n";
-	  }
-
-      # print join (" ",$pos,$meth,$unmeth,$perc,$coverage)."\n";
-    }
-  }
-
-  # Read 1 M-bias
-  my $r1_CpG_coverage_x = join (',',@{$mbias_1{'CpG'}->{coverage_x}});
-  my $r1_CpG_coverage_y = join (',',@{$mbias_1{'CpG'}->{coverage_y}}); 
-  my $r1_CpG_perc_x     = join (',',@{$mbias_1{'CpG'}->{perc_x}});
-  my $r1_CpG_perc_y     = join (',',@{$mbias_1{'CpG'}->{perc_y}});
-
-  my $r1_CHG_coverage_x = join (',',@{$mbias_1{'CHG'}->{coverage_x}});
-  my $r1_CHG_coverage_y = join (',',@{$mbias_1{'CHG'}->{coverage_y}}); 
-  my $r1_CHG_perc_x     = join (',',@{$mbias_1{'CHG'}->{perc_x}});
-  my $r1_CHG_perc_y     = join (',',@{$mbias_1{'CHG'}->{perc_y}});
-
-  my $r1_CHH_coverage_x = join (',',@{$mbias_1{'CHH'}->{coverage_x}});
-  my $r1_CHH_coverage_y = join (',',@{$mbias_1{'CHH'}->{coverage_y}}); 
-  my $r1_CHH_perc_x     = join (',',@{$mbias_1{'CHH'}->{perc_x}});
-  my $r1_CHH_perc_y     = join (',',@{$mbias_1{'CHH'}->{perc_y}});
-
-  # warn "R1 CpG coverage:\n$r1_CpG_coverage_x\n$r1_CpG_coverage_y\nR1 CpG methylation:\n$r1_CpG_perc_x\n$r1_CpG_perc_y\n\n";
-  # warn "R1 CHG coverage:\n$r1_CHG_coverage_x\n$r1_CHG_coverage_y\nR1 CHG methylation:\n$r1_CHG_perc_x\n$r1_CHG_perc_y\n\n";
-  # warn "R1 CHH coverage:\n$r1_CHH_coverage_x\n$r1_CHH_coverage_y\nR1 CHH methylation:\n$r1_CHH_perc_x\n$r1_CHH_perc_y\n\n";
-  
-  # CpG
-  $doc =~ s/\{\{mbias1_CpG_meth_x\}\}/$r1_CpG_perc_x/g;
-  $doc =~ s/\{\{mbias1_CpG_meth_y\}\}/$r1_CpG_perc_y/g; 
-  $doc =~ s/\{\{mbias1_CpG_coverage_x\}\}/$r1_CpG_coverage_x/g;
-  $doc =~ s/\{\{mbias1_CpG_coverage_y\}\}/$r1_CpG_coverage_y/g; 
-  # CHG 
-  $doc =~ s/\{\{mbias1_CHG_meth_x\}\}/$r1_CHG_perc_x/g;
-  $doc =~ s/\{\{mbias1_CHG_meth_y\}\}/$r1_CHG_perc_y/g; 
-  $doc =~ s/\{\{mbias1_CHG_coverage_x\}\}/$r1_CHG_coverage_x/g;
-  $doc =~ s/\{\{mbias1_CHG_coverage_y\}\}/$r1_CHG_coverage_y/g; 
-  # CHH
-  $doc =~ s/\{\{mbias1_CHH_meth_x\}\}/$r1_CHH_perc_x/g;
-  $doc =~ s/\{\{mbias1_CHH_meth_y\}\}/$r1_CHH_perc_y/g; 
-  $doc =~ s/\{\{mbias1_CHH_coverage_x\}\}/$r1_CHH_coverage_x/g;
-  $doc =~ s/\{\{mbias1_CHH_coverage_y\}\}/$r1_CHH_coverage_y/g; 
-
-  # Read 2 M-bias
-  if (%mbias_2){
-    my $r2_CpG_coverage_x = join (',',@{$mbias_2{'CpG'}->{coverage_x}});
-    my $r2_CpG_coverage_y = join (',',@{$mbias_2{'CpG'}->{coverage_y}}); 
-    my $r2_CpG_perc_x     = join (',',@{$mbias_2{'CpG'}->{perc_x}});
-    my $r2_CpG_perc_y     = join (',',@{$mbias_2{'CpG'}->{perc_y}});
-
-    my $r2_CHG_coverage_x = join (',',@{$mbias_2{'CHG'}->{coverage_x}});
-    my $r2_CHG_coverage_y = join (',',@{$mbias_2{'CHG'}->{coverage_y}}); 
-    my $r2_CHG_perc_x     = join (',',@{$mbias_2{'CHG'}->{perc_x}});
-    my $r2_CHG_perc_y     = join (',',@{$mbias_2{'CHG'}->{perc_y}});
-
-    my $r2_CHH_coverage_x = join (',',@{$mbias_2{'CHH'}->{coverage_x}});
-    my $r2_CHH_coverage_y = join (',',@{$mbias_2{'CHH'}->{coverage_y}}); 
-    my $r2_CHH_perc_x     = join (',',@{$mbias_2{'CHH'}->{perc_x}});
-    my $r2_CHH_perc_y     = join (',',@{$mbias_2{'CHH'}->{perc_y}});
-
-    # warn "r2 CpG coverage:\n$r2_CpG_coverage_x\n$r2_CpG_coverage_y\nr2 CpG methylation:\n$r2_CpG_perc_x\n$r2_CpG_perc_y\n\n";
-    # warn "r2 CHG coverage:\n$r2_CHG_coverage_x\n$r2_CHG_coverage_y\nr2 CHG methylation:\n$r2_CHG_perc_x\n$r2_CHG_perc_y\n\n";
-    # warn "r2 CHH coverage:\n$r2_CHH_coverage_x\n$r2_CHH_coverage_y\nr2 CHH methylation:\n$r2_CHH_perc_x\n$r2_CHH_perc_y\n\n";
-    
-    # CpG
-    $doc =~ s/\{\{mbias2_CpG_meth_x\}\}/$r2_CpG_perc_x/g;
-    $doc =~ s/\{\{mbias2_CpG_meth_y\}\}/$r2_CpG_perc_y/g; 
-    $doc =~ s/\{\{mbias2_CpG_coverage_x\}\}/$r2_CpG_coverage_x/g;
-    $doc =~ s/\{\{mbias2_CpG_coverage_y\}\}/$r2_CpG_coverage_y/g; 
-    # CHG 
-    $doc =~ s/\{\{mbias2_CHG_meth_x\}\}/$r2_CHG_perc_x/g;
-    $doc =~ s/\{\{mbias2_CHG_meth_y\}\}/$r2_CHG_perc_y/g; 
-    $doc =~ s/\{\{mbias2_CHG_coverage_x\}\}/$r2_CHG_coverage_x/g;
-    $doc =~ s/\{\{mbias2_CHG_coverage_y\}\}/$r2_CHG_coverage_y/g; 
-    # CHH
-    $doc =~ s/\{\{mbias2_CHH_meth_x\}\}/$r2_CHH_perc_x/g;
-    $doc =~ s/\{\{mbias2_CHH_meth_y\}\}/$r2_CHH_perc_y/g; 
-    $doc =~ s/\{\{mbias2_CHH_coverage_x\}\}/$r2_CHH_coverage_x/g;
-    $doc =~ s/\{\{mbias2_CHH_coverage_y\}\}/$r2_CHH_coverage_y/g; 
-
-
-  }
-  else {
-      $doc =~ s/\{\{bm_mbias_2\}\}/false/g;
-  }
-  warn "Complete\n\n";
-
-  return ($state,$doc);
 
 }
 
@@ -1333,7 +600,7 @@ VERSION
 	}
 	else{
 		# the default number of candidates is 10
-		$candidates = 10;
+		$candidates = 30;
 		warn "Reporting >>$candidates<< potential hybrid combinations [default]\n";
 	}
 	return ($output_dir,$verbose,$manual_output_file,$candidates);
