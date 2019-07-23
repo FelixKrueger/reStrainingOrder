@@ -151,9 +151,9 @@ while (@ARGV){
 				# calculate_hybrid_strain_ratios($index,$index2);	
 				# print_hybrid_strain_report();
 	
-				last if ($combo == 10);
+				#last if ($combo == 10);
 			}
-			last if ($combo == 10);
+			#last if ($combo == 10);
 		}
 		
 		
@@ -167,12 +167,12 @@ while (@ARGV){
 		close PAIRWISE or warn $!;
 		
 		# Now kicking off the allelic ratio calculation
-		print RATIOS "Strain1\tStrain1 Count\tStrain1 %\tStrain2\tStrain2 count\tStrain2 %\n";
+		print RATIOS "Strain1\tStrain1 Count\tStrain1 Perncentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		my $processed_count = 0;
 		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
-			last if ($processed_count == 7);
+			# last if ($processed_count == 7);
 			++$processed_count;	
-			warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
+			# warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
 			calculate_hybrid_strain_ratios( $pairwise{$combo}->{strain1_index} , $pairwise{$combo}->{strain2_index} );
 		}
 		close RATIOS or warn "Had trouble closing RATIOS filehandle: $!";
@@ -183,7 +183,7 @@ while (@ARGV){
 
     # Finally, writing all stats into a single summary file
     collate_summary($outfile,$pairwise_hybrid_file,$hybrid_scores_file,$summary_stats_file);
-
+	warn "reStrainingOrder processing complete.\n\n";
 	exit;
 
     ######################
@@ -251,28 +251,33 @@ while (@ARGV){
 sub collate_summary{
 	my ($outfile,$pairwise_hybrid_file,$hybrid_scores_file,$summary_stats_file) = @_;
 
-	warn "Finishing up by collating all result files (writing to $summary_stats_file)...\n";
+	warn "\n\nFinishing up by collating all result files (writing to $summary_stats_file)...\n";
 
 	open (my $tmp,$outfile) or die $!;
-	while (<$tmp>){
-		print SUMMARY;
-	}
-	close $tmp or warn $!;
-	print SUMMARY "\n";
-
-	open ($tmp,$pairwise_hybrid_file) or die $!;
-	while (<$tmp>){
-		print SUMMARY;
-	}
-	close $tmp or warn $!;
-	print SUMMARY "\n";
-
-	open ($tmp,$hybrid_scores_file) or die $!;
+	print SUMMARY "STRAIN SCORES\n";
 	while (<$tmp>){
 		print SUMMARY;
 	}
 	close $tmp or warn $!;
 
+	unless($skip_hybrid_detection){
+		print SUMMARY "\n";
+
+		open ($tmp,$pairwise_hybrid_file) or die $!;
+		print SUMMARY "HYBRID SCORES\n";
+		while (<$tmp>){
+			print SUMMARY;
+		}
+		close $tmp or warn $!;
+		print SUMMARY "\n";
+
+		open ($tmp,$hybrid_scores_file) or die $!;
+		print SUMMARY "ALLELE RATIOS\n";
+		while (<$tmp>){
+			print SUMMARY;
+		}
+		close $tmp or warn $!;
+	}
 	close SUMMARY or die "Failed to close filehandle SUMMARY: $!\n"; 
 
 	warn "All done. Good luck.\n\n";
@@ -1026,6 +1031,7 @@ sub score_bisulfite_SNPs{
 				else{
 					if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 					++$irrelevant;
+					$snps{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 			}
 			elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # only A left...
@@ -1035,6 +1041,7 @@ sub score_bisulfite_SNPs{
 			}
 			else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 				++$irrelevant;
 			}
 		}
@@ -1075,6 +1082,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		elsif ($strand eq 'OB' or $strand eq 'CTOB'){ # Reads to the bottom strand can still be assigned normally
@@ -1096,6 +1104,7 @@ sub score_bisulfite_SNPs{
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
+					$snps{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
 		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # only A left...
@@ -1106,6 +1115,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		else{
@@ -1144,6 +1154,7 @@ sub score_bisulfite_SNPs{
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
+				    $snps{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
 		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # has to be T
@@ -1154,6 +1165,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 
 		}
@@ -1173,6 +1185,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 
 		}
@@ -1214,6 +1227,7 @@ sub score_bisulfite_SNPs{
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
+				    $snps{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
 		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # has to be T
@@ -1224,6 +1238,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		elsif ($strand eq 'OB' or $strand eq 'CTOB'){ # Reads to the bottom strand might carry a bisulfite conversion
@@ -1242,6 +1257,7 @@ sub score_bisulfite_SNPs{
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		else{
@@ -1265,6 +1281,7 @@ sub score_bisulfite_SNPs{
 		else{
 		    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 		    ++$irrelevant;
+		    $snps{$chr}->{$genomic_pos}->{OTHER}++;
 		}
     }
 

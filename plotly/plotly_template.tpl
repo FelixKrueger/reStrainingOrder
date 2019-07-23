@@ -206,8 +206,9 @@
 			x: [{{strain_scores_percentages_plotly}}],
 			type: 'bar',
 			marker: {
+				color: '#0d233a',
 				<!-- color: ['#0d233a', '#2f7ed8','#2f7ed8'], -->
-	 			colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'], 
+	 			<!-- colors: ['#0d233a', '#2f7ed8','#8bbc21','#910000','#1aadce','#492970','#f28f43','#77a1e5','#c42525','#a6c96a'], -->
    				line: {
      				color: 'black',
       				width: 1
@@ -222,7 +223,19 @@
   			<!-- plot_bgcolor: '#c7c7c7',  -->
   			height: 1000,
 			width: 700,
-			
+			shapes: [{
+				type: 'line',
+    			x0: '100',
+    			y0: 0,
+				x1: '100',
+				yref: 'paper',
+				y1: 1,
+				line: {
+					color: 'grey',
+					width: 1.5,
+					dash: 'dot'
+				}
+			}],
   			margin: {
 			    l: 250,
 			    r: 50,
@@ -241,6 +254,8 @@
 			yaxis:{
 				autorange: "reversed",
 				automargin: true,
+				ticks: 'outside',
+				tickcolor: 'rgba(0,0,0,0)',
 			}
 		
 		};
@@ -314,6 +329,19 @@
 	  		width:  600,
 			height: 900,
 			
+			shapes: [{
+				type: 'line',
+    			x0: '100',
+    			y0: 0,
+				x1: '100',
+				yref: 'paper',
+				y1: 1,
+				line: {
+					color: 'grey',
+					width: 1.5,
+					dash: 'dot'
+				}
+			}],
 	  		xaxis: {
 	  			automargin: true,
 				tickfont: {
@@ -334,7 +362,9 @@
 	  			tickfont: {
 	  				<!-- family: 'Courier New, monospace', -->	
 	  				size: 14, 
-		  		}
+		  		},
+				ticks: 'outside',
+				tickcolor: 'rgba(0,0,0,0)',
 	  		}, 
 			margin: {
 			    l: 0,

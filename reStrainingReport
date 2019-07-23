@@ -318,7 +318,7 @@ while (@reStrainingOrder_summary_reports){
   	$verbose and sleep(3);
 
 	write_out_report($report_output,$doc);
-
+	
 }
 
 sub write_out_report{
