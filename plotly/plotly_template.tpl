@@ -5,7 +5,9 @@
 
 		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 		<title>reStrainingOrder Summary Report - {{filename}}</title>
-
+			{{logo_goes_here}}
+ 					This will need to be replaced by the reStrainingOrder Logo
+ 				{{logo_goes_here}}
 		<style>
                   body {
                           font-family: Arial, sans-serif;
@@ -144,6 +146,7 @@
 			<h1>reStrainingOrder Summary Report</h1>
 	
 			<div class="subtitle">
+			
 				<h3>{{filename}}</h3>
 				<p>Data processed at {{time}} on {{date}}</p>
 			</div>
@@ -152,23 +155,36 @@
 	
 		<hr id="header_hr">
 	
-	
+	<h2>General Statistics</h2>
+	<table>
+		<tbody>
+			<tr>
+				<td style="vertical-align:top">
+					<table class="data">
+						{{number_of_positions_covered}}
+					</table>
+				</td>
+			</tr>
+		</tbody>
+	</table>
 
+	<hr>
+	
 	<h2>Strain Compatibility Scores</h2>
-		<table>
-			<tbody>
-				<tr>
-					<td style="vertical-align:top">
-						<table class="data">
-							{{strain_compatibility_content}}
-						</table>
-					</td>
-					<td>
-						<div id="Strain_Scores_Report"><!-- Plotly chart will be drawn inside this DIV --> </div>
-					</td>						
-				</tr>
-			</tbody>
-		</table>
+	<table>
+		<tbody>
+			<tr>
+				<td style="vertical-align:top">
+					<table class="data">
+						{{strain_compatibility_content}}
+					</table>
+				</td>
+				<td>
+					<div id="Strain_Scores_Report"><!-- Plotly chart will be drawn inside this DIV --> </div>
+				</td>						
+			</tr>
+		</tbody>
+	</table>
 
 			
 	<hr>
