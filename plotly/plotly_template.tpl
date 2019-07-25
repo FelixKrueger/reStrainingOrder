@@ -4,10 +4,8 @@
 	<head>
 
 		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
-		<title>reStrainingOrder Summary Report - {{filename}}</title>
-			{{logo_goes_here}}
- 					This will need to be replaced by the reStrainingOrder Logo
- 				{{logo_goes_here}}
+		<title>reStrainingOrder: Summary Report - {{filename}}</title>
+		
 		<style>
                   body {
                           font-family: Arial, sans-serif;
@@ -33,7 +31,8 @@
                           padding: 0 20px 20px 0;
                   }
                   .subtitle {
-                          margin-top:120px;
+                          margin-top:55px;
+                          margin-right:20px;
                           float:right;
                           text-align:right;
                   }
@@ -107,7 +106,7 @@
                   }
 
                   .data th {
-                          text-align:left;
+                          text-align:right;
                   }
                   .data td {
                           text-align:right;
@@ -143,11 +142,20 @@
 	<div class="container">
 		<div class="header">
 		 
-			<h1>reStrainingOrder Summary Report</h1>
+			<div class="container">
+			<a style="align:left;">
+				{{logo_goes_here}}
+ 					This will need to be replaced by the reStrainingOrder Logo
+ 				{{logo_goes_here}}
+ 			</a>
+
+			</div>
+			<h1>reStrainingOrder: Summary Report</h1>
 	
 			<div class="subtitle">
-			
-				<h3>{{filename}}</h3>
+				
+ 				<h3>{{filename}}</h3>
+				
 				<p>Data processed at {{time}} on {{date}}</p>
 			</div>
 			

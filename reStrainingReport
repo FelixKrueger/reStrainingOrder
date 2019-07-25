@@ -71,10 +71,10 @@ while (@reStrainingOrder_summary_reports){
     if ($doc =~ s/\{\{logo_goes_here\}\}.*\{\{logo_goes_here\}\}/$logo/s){  # treating the string as a single line
         warn "reStrainingOrder.logo injection successful!\n" if $verbose;
     }
-    
+
 		my $summary_report_bam_file = $summary_report;
 		$summary_report_bam_file =~ s/reStrainingOrder.summary_stats.txt/bam/;
-        $doc =~ s/\{\{filename\}\}/$summary_report/g;
+        $doc =~ s/\{\{filename\}\}/$summary_report_bam_file/g;
     	# Get the plot.ly code into a string. This makes the template so much more managable and also allows for quick replacement of the plot.ly
    	# code itself should it get updated
     	my $plotly_code = read_report_template('plot.ly');
@@ -122,11 +122,11 @@ while (@reStrainingOrder_summary_reports){
 	################################################
   	### PROCESSING GENERAL STATISTICS
 	my $number_of_positions_covered;
-	$number_of_positions_covered   .= "<tr>\n\t<td>Input filename:</td>\n\t<td>$summary_report_bam_file</td>\n</tr>\n";
+	# $number_of_positions_covered   .= "<tr>\n\t<td>Input filename:</td>\n\t<td>$summary_report_bam_file</td>\n</tr>\n";
 	$number_of_positions_covered   .= "<tr>\n<td>Different positions on chr1 covered:</td>\n";
 		foreach my $number(sort {$a<=>$b} keys %strain_scores){
 		$number_of_positions_covered   .= "\t<td>$strain_scores{$number}->{covered}</td>\n";
-		$number_of_positions_covered   .- "\t</tr>\n"; 
+		$number_of_positions_covered   .= "\t</tr>\n"; 
 		last; # only needed once
 	}
 	
