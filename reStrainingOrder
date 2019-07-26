@@ -137,8 +137,7 @@ while (@ARGV){
     calculate_single_strain_tallies();
     print_single_strain_report();
 
-	# STEP 2: Calculate pair-wise hybrid strain compatibility
-
+	# STEP 2: Calculate all pair-wise hybrid strain compatibility
 	unless ($skip_hybrid_detection){
 		# The order is: Strain Combination number // strain 1 index // strain 2 index
 		my $combo = 0;
@@ -146,14 +145,16 @@ while (@ARGV){
 			foreach my $index2 ( ($index+1)..$#strains){
 				++$combo;
 				print "Index 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n";
-				calculate_pairwise_comparisons($combo,$index,$index2);
+				
+				calculate_pairwise_comparisons_and_hybrid_strain_ratios($combo,$index,$index2);
+				
 				# STEP 3: Calculate hybrid strain ratios
 				# calculate_hybrid_strain_ratios($index,$index2);	
 				# print_hybrid_strain_report();
 	
-				#last if ($combo == 10);
+				#last if ($combo == 5);
 			}
-			#last if ($combo == 10);
+			#last if ($combo == 5);
 		}
 		
 		
@@ -173,7 +174,7 @@ while (@ARGV){
 			# last if ($processed_count == 7);
 			++$processed_count;	
 			# warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
-			calculate_hybrid_strain_ratios( $pairwise{$combo}->{strain1_index} , $pairwise{$combo}->{strain2_index} );
+			# calculate_hybrid_strain_ratios( $pairwise{$combo}->{strain1_index} , $pairwise{$combo}->{strain2_index} );
 		}
 		close RATIOS or warn "Had trouble closing RATIOS filehandle: $!";
 	}
@@ -184,66 +185,18 @@ while (@ARGV){
     # Finally, writing all stats into a single summary file
     collate_summary($outfile,$pairwise_hybrid_file,$hybrid_scores_file,$summary_stats_file);
 	warn "reStrainingOrder processing complete.\n\n";
-	exit;
+	
 
-    ######################
-    #####            #####
-    #####  tag2sort  #####
-    #####            #####
-    ######################
+    ###############################
+    #####                     #####
+    #####  reStrainingReport  #####
+    #####                     #####
+    ###############################
 
-    # Calling the allele-specific sorting now
-    my @args;
-    if ($samtools_path){
-		push @args, "--samtools_path $samtools_path";
-    }
-    if ($paired){
-		push @args, '--paired';
-    }
-    unless ($bam){
-		push @args, '--sam';
-    }
-    if ($verbose){
-		push @args, '--verbose';
-    }
-    if ($output_dir){ # not passing on empty strings
-		push @args, "--output_dir $output_dir";
-    }
-    if ($conflict){
-		push @args, '--conflicting';
-    }
-    if ($singletons){
-		push @args, '--singletons';
-    }
+    # Calling reStrainingReport now to generate an HTML report
+    system ("$RealBin/reStrainingReport");
 
-    system ("$RealBin/tag2sort @args $outfile");
-
-    ####
-
-    #my $sortfile = $outfile;
-
- 	#   if ($sortfile =~ s/allele_flagged\.bam$/bam/){
-	#		if ($sortfile =~ s/bam$/SNPsplit_sort.txt/){
-	#			if (-e $sortfile){
-	#
-	#		open (SORT,"${output_dir}$sortfile") or die "Failed to read sorting report from '${output_dir}$sortfile': $!\n";
-	#		my $doc;
-	#		while(<SORT>){
-	#			chomp;
-	#			$_ =~ s/\r//g;
-	#			$doc .= $_."\n";
-	#		}
-
-	#		close SORT or die $!;
-
-			### appending the sorting report to the tagging report
-	#		warn "Appending sorting report to tagging report...\n";
-
-	#		print REPORT $doc;
-	#		}
-	#	}
-    #}
-    # warn "SNPsplit processing finished...\n\n";
+   	# warn "reStrainingOrder run complete...\n\n";
 }
 
 ###
@@ -1729,7 +1682,6 @@ sub calculate_single_strain_tallies{
 }
 
 sub calculate_pairwise_comparisons{
-
 	my ($combo,$strain1_index,$strain2_index) = @_;
 	# currently testing this with B6 CAST
 	#my ($strain1_index,$strain2_index) = (10,15); 
@@ -1830,6 +1782,232 @@ sub calculate_pairwise_comparisons{
 	$pairwise{$combo}->{percentage} = $percent_agreement;
 	$pairwise{$combo}->{strain1_index} = $strain1_index;
 	$pairwise{$combo}->{strain2_index} = $strain2_index;
+
+}
+
+sub allele_ratios{
+	my ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,%hybrid_identity) = @_;
+	
+	# Number of different positions that were covered by any reads at all
+	if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
+		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+		# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
+		# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
+		# sleep(1);
+		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+		# The position is only interesting if the 2 strains have a different genotype here					
+		if ( $snps{$chr}->{$pos}->{calls}[$strain1_index] ne $snps{$chr}->{$pos}->{calls}[$strain2_index] ){
+
+			++$informative;
+
+			# strain 1 looks like the reference
+			if ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0){
+				#warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
+				#warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
+				
+				if (defined $snps{$chr}->{$pos}->{REF}){
+					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
+				}
+				if (defined $snps{$chr}->{$pos}->{ALT}){
+					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
+				}
+
+			}
+			elsif($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0){
+				# warn "Strain 2 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
+				# warn "Strain 1 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
+
+				if (defined $snps{$chr}->{$pos}->{REF}){
+					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
+				}
+				if (defined $snps{$chr}->{$pos}->{ALT}){
+					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
+				}
+
+			}
+			else{
+				die "Either strain 1 or strain 2 should look like the reference!\n";
+			}
+
+		}
+		else{
+			# position is not informative
+			++$not_informative;
+		}
+			
+		$processed++;
+	
+	}
+	else{
+		++$not_covered;
+		# warn "Position was not covered at all\n";		
+	}
+	return($processed,$not_covered,$informative,$not_informative);
+
+}
+
+sub pairwise_comparison{
+	my ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no) = @_;
+	# warn "Getting: $chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no\n";			
+		
+	# Number of different positions that were covered by any reads at all
+	if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
+		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+		# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
+		# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
+		# sleep(1);
+	
+		# The position agrees with a hybrid potential hybrid if both positions only interesting if the 2 strains have a different genotype here					
+		if ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0) ){
+			# warn "Pure 0/0\n";
+			if (defined $snps{$chr}->{$pos}->{REF}){
+				$yes += $snps{$chr}->{$pos}->{REF};
+			}
+			if (defined $snps{$chr}->{$pos}->{ALT}){
+				$no  += $snps{$chr}->{$pos}->{ALT};
+			}
+			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+				$no  += $snps{$chr}->{$pos}->{OTHER};;
+			}
+		}
+		elsif ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1) ){
+			# warn "Pure 1/1\n";
+			if (defined $snps{$chr}->{$pos}->{REF}){
+				$no  += $snps{$chr}->{$pos}->{REF};
+			}
+			if (defined $snps{$chr}->{$pos}->{ALT}){
+				$yes += $snps{$chr}->{$pos}->{ALT};
+			}
+			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+				$no  += $snps{$chr}->{$pos}->{OTHER};;
+			}
+		}
+		elsif ( (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1)) 
+		or (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0)) ){
+			#warn "Mix\n";
+			if (defined $snps{$chr}->{$pos}->{REF}){
+				$yes += $snps{$chr}->{$pos}->{REF};
+			}
+			if (defined $snps{$chr}->{$pos}->{ALT}){
+				$yes += $snps{$chr}->{$pos}->{ALT};
+			}
+			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
+				$no  += $snps{$chr}->{$pos}->{OTHER};;
+			}
+		}
+		else{
+			die "We require to have one of the above combinations!";					
+		}
+			
+		$processed++;
+		# sleep(1);
+	}
+	else{
+		++$not_covered; 	# warn "Position was not covered at all\n";		
+	}	
+	# warn "Passing on: $processed,$not_covered,$informative,$not_informative,$yes,$no\n";
+	return($processed,$not_covered,$informative,$not_informative,$yes,$no);
+}
+
+sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
+
+	my ($combo,$strain1_index,$strain2_index) = @_;
+	# currently testing this with B6 CAST
+	#my ($strain1_index,$strain2_index) = (10,15); 
+	
+	### Hybrid Strain information
+	my $processed = 0;
+	my $not_covered = 0;
+	my $informative = 0;
+	my $not_informative = 0;
+
+	my %hybrid_agreement;
+	$hybrid_agreement{0}->{name} = $strains[$strain1_index];
+	$hybrid_agreement{1}->{name} = $strains[$strain2_index];
+
+	my $yes = 0;
+	my $no = 0;
+
+	### Allele Ratio Agreement
+	my $processed_allele_ratios = 0;
+	my $not_covered_allele_ratios = 0;
+	my $informative_allele_ratios = 0;
+	my $not_informative_allele_ratios = 0;
+
+	my %hybrid_identity;
+	$hybrid_identity{0}->{name} = $strains[$strain1_index];
+	$hybrid_identity{1}->{name} = $strains[$strain2_index];
+
+	warn "Calculating hybrid strain agreement ratio for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n";
+	warn "Calculating strain ratios for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
+	foreach my $chr(keys %snps){
+		foreach my $pos(keys %{$snps{$chr}} ){
+			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+			
+			# Calculate hybrid agreement
+			($processed,$not_covered,$informative,$not_informative,$yes,$no) =
+			 	pairwise_comparison ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no);			
+			# Calculate allele ratios 
+			#warn "Passing on: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n";
+			($processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios) =
+				allele_ratios($chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios,%hybrid_identity);
+			#warn "Getting back: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n"; sleep(1);
+			
+		}	
+	
+	}
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name} hybrid strain canditate stats\n=====================================================\n";
+	warn "SNP positions were covered:\t\t$processed\n";	
+	warn "Positions were not covered:\t\t$not_covered\n\n";
+	
+	my $percent_agreement;
+	
+	if ( ($yes + $no) > 0){
+		$percent_agreement = sprintf("%.2f",$yes / ($yes + $no) *100);
+	}
+	else{
+		$percent_agreement = 'NA ';
+	}
+
+	warn "Potential Hybrid\tAgreeing\tNot agreeing\tPercentage agreement\n";
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}\t$yes\t$no\t$percent_agreement\n";
+	$pairwise{$combo}->{hybrid} = "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}";
+	$pairwise{$combo}->{yes} = $yes;
+	$pairwise{$combo}->{no} = $no;
+	$pairwise{$combo}->{percentage} = $percent_agreement;
+	$pairwise{$combo}->{strain1_index} = $strain1_index;
+	$pairwise{$combo}->{strain2_index} = $strain2_index;
+
+	warn "$hybrid_identity{0}->{name}/$hybrid_identity{0}->{name} hybrid strain stats\n=====================================================\n";
+	warn "SNP positions were covered:\t\t$processed\n";	
+	warn "Positions were not covered:\t\t$not_covered\n";
+	warn "SNP positions were informative:\t\t$informative\n";	
+	warn "SNP positions were not informative (skipped):\t$not_informative\n\n";
+
+	### allele ratios
+	my $percent_strain1;
+	my $percent_strain2;
+	
+	unless (defined $hybrid_identity{0}->{count}){
+		$hybrid_identity{0}->{count} = 0;
+	}
+	unless (defined $hybrid_identity{1}->{count}){
+		$hybrid_identity{1}->{count} = 0;
+	}
+
+	if ( ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) > 0){
+		$percent_strain1 = sprintf("%.1f",$hybrid_identity{0}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
+		$percent_strain2 = sprintf("%.1f",$hybrid_identity{1}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
+	}
+	else{
+		$percent_strain1 = 'NA ';
+		$percent_strain2 = 'NA ';
+	}
+
+	warn "Strain $hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count} ($percent_strain1%)\n";
+	warn "Strain $hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count} ($percent_strain2%)\n";
+	
+	print RATIOS "$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
 
 }
 
@@ -2107,13 +2285,13 @@ sub process_commandline{
 
     ### EXIT ON ERROR if there were errors with any of the supplied options
     unless ($command_line){
-	die "Please respecify command line options\n";
+		die "Please respecify command line options\n";
     }
 
     ### HELPFILE
     if ($help){
-	print_helpfile();
-	exit;
+		print_helpfile();
+		exit;
     }
 
     if ($version){
@@ -2133,10 +2311,10 @@ VERSION
 
     ### no files provided
     unless (@ARGV){
-	warn "You need to provide one or more SAM/BAM files to start the allele-specific pipeline. Please respecify!\n";
-	sleep(1);
-	print_helpfile();
-	exit;
+		warn "You need to provide one or more SAM/BAM files to start the allele-specific pipeline. Please respecify!\n";
+		sleep(1);
+		print_helpfile();
+		exit;
     }
 
 
@@ -2159,28 +2337,27 @@ VERSION
 
     ### PATH TO SAMTOOLS
     if (defined $samtools_path){
-	# if Samtools was specified as full command
-	if ($samtools_path =~ /samtools$/){
-	    if (-e $samtools_path){
-		# Samtools executable found
-	    }
-	    else{
-		die "Could not find an installation of Samtools at the location $samtools_path. Please respecify\n";
-	    }
-	}
-	else{
-	    unless ($samtools_path =~ /\/$/){
-		$samtools_path =~ s/$/\//;
-	    }
-	    $samtools_path .= 'samtools';
-	    if (-e $samtools_path){
-		# Samtools executable found
-	    }
-	    else{
-		die "Could not find an installation of Samtools at the location $samtools_path. Please respecify\n";
-	    }
-	}
-
+		# if Samtools was specified as full command
+		if ($samtools_path =~ /samtools$/){
+			if (-e $samtools_path){
+				# Samtools executable found
+			}
+			else{
+				die "Could not find an installation of Samtools at the location $samtools_path. Please respecify\n";
+			}
+		}
+		else{
+			unless ($samtools_path =~ /\/$/){
+				$samtools_path =~ s/$/\//;
+			}
+			$samtools_path .= 'samtools';
+			if (-e $samtools_path){
+				# Samtools executable found
+			}
+			else{
+				die "Could not find an installation of Samtools at the location $samtools_path. Please respecify\n";
+			}
+		}
     }
     # Check whether Samtools is in the PATH if no path was supplied by the user
     else{
@@ -2203,38 +2380,31 @@ VERSION
 		}
     }
 
-    if ($hic_data){
-	warn "Hi-C data specified. This assumes that the data has been processed with HiCUP, is paired-end and does not require positional sorting.\nSetting '--paired' and '--no_sort'...\n\n";
-	$paired = 1;
-	$no_sort = 1;
-	sleep(1);
-    }
-
     ### OUTPUT DIRECTORY PATH
     chdir $parent_dir or die "Failed to move back to current working directory\n";
     if (defined $output_dir){
-	unless ($output_dir eq ''){
-	    unless ($output_dir =~ /\/$/){
-		$output_dir =~ s/$/\//;
-	    }
-	}
+		unless ($output_dir eq ''){
+	    	unless ($output_dir =~ /\/$/){
+			$output_dir =~ s/$/\//;
+	    	}
+		}
 
-	if (chdir $output_dir){
-	    $output_dir = getcwd(); #  making the path absolute
-	    unless ($output_dir =~ /\/$/){
-		$output_dir =~ s/$/\//;
-	    }
-	}
-	else{
-	    mkdir $output_dir or die "Unable to create directory $output_dir $!\n";
-	    warn "Created output directory $output_dir!\n\n";
-	    chdir $output_dir or die "Failed to move to $output_dir\n";
-	    $output_dir = getcwd; #  making the path absolute
-	    unless ($output_dir =~ /\/$/){
-		$output_dir =~ s/$/\//;
-	    }
-	}
-	warn "Output will be written into the directory: $output_dir\n";
+		if (chdir $output_dir){
+			$output_dir = getcwd(); #  making the path absolute
+			unless ($output_dir =~ /\/$/){
+			$output_dir =~ s/$/\//;
+			}
+		}
+		else{
+			mkdir $output_dir or die "Unable to create directory $output_dir $!\n";
+			warn "Created output directory $output_dir!\n\n";
+			chdir $output_dir or die "Failed to move to $output_dir\n";
+			$output_dir = getcwd; #  making the path absolute
+			unless ($output_dir =~ /\/$/){
+			$output_dir =~ s/$/\//;
+			}
+		}
+		warn "Output will be written into the directory: $output_dir\n";
     }
     else{
 		$output_dir = '';
