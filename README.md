@@ -40,4 +40,4 @@ reStrainingOrder itself is free software, `reStrainingReport` produces HTML grap
 
 reStrainingOrder was written by Felix Krueger, part of the [Babraham Bioinformatics](https://www.bioinformatics.babraham.ac.uk) group.
 
-<p align="center"> <img title="Babraham Bioinformatics" id="logo_img" src="Docs/Images/bioinformatics_logo.png" width=300></p>
+<p align="center"> <img title="Babraham Bioinformatics" id="logo_img" src="Docs/Images/bioinformatics_logo.png"></p>
