@@ -1,10 +1,10 @@
-[<img title="Babraham Bioinformatics" style="float:right;margin:20px 20 20 600px" id="Babraham Bioinformatics" src="Images/bioinformatics_logo.png" height="88" >](http://www.bioinformatics.babraham.ac.uk/index.html)
+[<img title="Babraham Bioinformatics" style="float:right;margin:20px 20 20 200px" id="Babraham Bioinformatics" src="Images/bioinformatics_logo.png" height="88" >](http://www.bioinformatics.babraham.ac.uk/index.html)
 
-<img title="Odd One Out" align="right" id="header_img" src="Images/mice_logo.png">
+<img title="Odd One Out" align="left" id="header_img" src="Images/mice_logo.png">
+
 # reStrainingOrder - Mouse Strain Identification
 
 ## User Guide - v0.1.0
-#### 02 August, 2019
 
 This User Guide outlines how reStrainingOrder tools work and gives more details for each individual step.
 
@@ -14,8 +14,8 @@ Last update: 02/07/2019
 
 #### Table of Contents
 * [Quick Reference](#quick-reference)
-* 1. [Installation Notes](#which-kind-of-files-are-supported)
-  1. [Quality Trimming](#step-1-quality-trimming)
+* 1. [Supported file types](#which-kind-of-files-are-supported)
+  2. [Installation Notes](#step-1-quality-trimming)
   2. [Adapter Trimming](#step-2-adapter-trimming)
     - [Auto-detection](#adapter-auto-detection)
     - [Manual adapter sequence specification](#manual-adapter-sequence-specification)
@@ -28,16 +28,12 @@ Last update: 02/07/2019
 ## Quick Reference
 
 
-Bismark needs a working version of Perl and it is run from the command line. Furthermore, [Bowtie 2](http://bowtie-bio.sourceforge.net/bowtie2) or [HISAT2](https://ccb.jhu.edu/software/hisat2/index.shtml) needs to be installed on your computer. For more information on how to run Bismark with Bowtie 2 please go to the end of this manual.
-
-First you need to download a reference genome and place it in a genome folder. Genomes can be obtained e.g. from the [Ensembl](http://www.ensembl.org/info/data/ftp/index.html/) or [NCBI](ftp://ftp.ncbi.nih.gov/genomes/) websites. For the example below you would need to download the _Homo sapiens_ genome. Bismark supports reference genome sequence files in `FastA` format, allowed file extensions are either either `.fa` or `.fasta`. Both single-entry and multiple-entry `FastA` files are supported.
-
 We would like to hear your comments or suggestions! Please e-mail [felix.krueger@babraham.ac.uk](mailto:felix.krueger@babraham.ac.uk)
 
 
 ### Which kind of files are supported?
 
-reStrainingOrder should work with 
+reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq reads as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 ### Installation notes
 
@@ -53,34 +49,16 @@ reStrainingOrder requires a working version of Perl and [Samtools](http://samtoo
 
 ```
 
-## Hardware requirements
+### Hardware requirements
 
 
 # The reStrainingOrder workflow in more detail
 
+## reStraining - genome preparation
+
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (e.g. this [latest file](ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz)) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
+
 ## Specific considerations for more specialised applications or software
-### Paired-end:  
-
-In paired-end mode, both reads are used for the classification. Read pairs with conflicting reads (tag CF) or pairs containing both tags G1 and G2 are considered conflicting and are not reported by default. Reporting of these reads can be enabled using the option `--conflicting`.
-
-Singleton alignments in the allele-tagged paired-end file (which is the default for e.g. TopHat) are also sorted into the above four files. Specifying `--singletons` will write these alignments to special singleton files instead (ending in `*_st.bam`).
-
-
-### Hi-C data: 
-
-Assumes data processed with [HiCUP](www.bioinformatics.babraham.ac.uk/projects/hicup/ "HiCUP on the Babraham Bioinformatics website") as input, i.e. the input BAM files are by definition paired-end and Reads 1 and 2 follow each other. Hi-C sorting discriminates several more possible read combinations:
-
-```G1-G1
-G2-G2
-G1-UA
-G2-UA
-G1-G2
-UA-UA
-```
-
-
-Again, read pairs containing a conflicting reads (tag `XX:Z:CF`) are not printed out by default, but this may be enabled using the option `--conflicting`. For an example report please see below.
-
 
 ### RNA-Seq alignments with STAR: 
 
@@ -117,11 +95,7 @@ For SNPs which are masked by Ns in the genome no methylation call will be perfor
 
 
  
-## SNPsplit genome preparation
 
-`SNPsplit_genome_preparation` is designed to read in a variant call file from the Mouse Genomes Project (e.g. this [latest file](ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz)) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
-
-`SNPsplit_genome_preparation` may be run in two different modes:
 
 #### Single strain mode:
 **1)** The VCF file is read and filtered for high-confidence SNPs in the strain specified with   strain <name>
