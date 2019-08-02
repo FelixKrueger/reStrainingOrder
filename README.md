@@ -1,7 +1,7 @@
 <img title="Odd One Out" align="right" id="header_img" src="Docs/Images/mice_logo.png">
 
 # reStrainingOrder - why do we need one?
-reStrainingOrder is intended as QC tool that attempts to idenitfy the genotype of pure strain or hybrid mouse samples. It can be be used to check public data as well as provide useful insight into mouse strains commonly used in your own lab.
+reStrainingOrder is intended as QC tool that attempts to identify the genotype of pure strain or hybrid mouse samples. It can be be used to check public data as well as provide useful insight into mouse strains commonly used in your own lab.
 
 To do this, reStrainingOrder harnesses single-nucleotide polymorphism (SNP) information collected by the Mouse Genomes Project (MGP, http://www.sanger.ac.uk/science/data/mouse-genomes-project), and constructs a fully N-masked genome similar to the approach of [SNPsplit](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md).
 
