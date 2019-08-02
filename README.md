@@ -13,7 +13,7 @@ Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatic
 
 #### Hybrid example report
 
-Here is an example of a [129S1/CAST hybrid](http://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html) strain (public data from [GEO](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM753570)), aligned with Bismark/Bowtie2). The Hybrid Strain Compatibility Scores indicate that a 129S1_SvImJ/CAST_EiJ hybrid is > 99% compatible with the data. The allele-ratios between 129 and CAST are almost 1:1.
+Here is an example of a [129S1/CAST hybrid](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html) strain (public data taken from this [GEO entry](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM753570), aligned with Bismark/Bowtie2). The Hybrid Strain Compatibility Scores indicate that a 129S1_SvImJ/CAST_EiJ hybrid is > 99% compatible with the data. The allele-ratios between 129 and CAST are almost 1:1.
 
 
 ## Installation
