@@ -2,11 +2,11 @@
 
 <img title="Odd One Out" align="right" id="header_img" src="Images/mice_logo.png">
 
-# reStrainingOrder - Mouse Strain Identification
+# reStrainingOrder ~ Mouse Strain Identification
 
 ## User Guide - v0.1.0
 
-This User Guide outlines how reStrainingOrder works and gives details for each individual step.
+This User Guide outlines how reStrainingOrder works and gives details for each step.
 
 
 
@@ -14,11 +14,12 @@ Last update: 02/08/2019
 
 #### Table of Contents
 * [Quick Reference](#quick-reference)
-* 1. [Supported file types](#which-kind-of-files-are-supported)
+  1. [Supported file types](#which-kind-of-files-are-supported)
   2. [Installation Notes](#step-1-quality-trimming)
   2. [Adapter Trimming](#step-2-adapter-trimming)
     - [Auto-detection](#adapter-auto-detection)
     - [Manual adapter sequence specification](#manual-adapter-sequence-specification)
+ * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
   3. [Removing Short Sequences](#step-3-removing-short-sequences)
   4. [Specialised Trimming - hard- and Epigenetic Clock Trimming](#step-4-specialised-trimming)
 * [Full list of options for Trim Galore!](#full-list-of-options-for-trim-galore)
