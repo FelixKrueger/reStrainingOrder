@@ -1,9 +1,11 @@
 <img title="Odd One Out" align="right" id="header_img" src="Docs/Images/mice_logo.png">
 
-# Why do we need one?
-reStrainingOrder is intended as QC tool that attempts to predict the genotype of pure strain or hybrid mouse samples. It can be be used to check public data as well as provide useful insight into mouse strains commonly used in your own lab.
+# reStrainingOrder - Why do we need one?
+reStrainingOrder is intended as QC tool that attempts to idenitfy the genotype of pure strain or hybrid mouse samples. It can be be used to check public data as well as provide useful insight into mouse strains commonly used in your own lab.
 
 To do this, reStrainingOrder harnesses single-nucleotide polymorphism (SNP) information collected by the Mouse Genomes Project (MGP, http://www.sanger.ac.uk/science/data/mouse-genomes-project).
+
+reStrainingOrder is intended to work with most common types of Illumina sequencing - including RNA-seq, ChIP-seq, ATAC-seq or any kind of Bisulfite-seq. Similar to [SNPsplit](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md), supported aligners include Bowtie2, HISAT2, STAR, and Bismark (Oxford comma, anyone?).
 
 
 ## Installation
@@ -15,7 +17,7 @@ reStrainingOrder requires the following tools installed and ideally available in
 
 
 ## Documentation
-The reStrainingOrder documentation can be found here: [reStrainingOrder User Guide](./reStrainingOrder_User_Guide.md)
+The reStrainingOrder documentation can be found here: [reStrainingOrder User Guide](./Docs/README.md)
 
 
 ## Links
