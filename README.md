@@ -7,6 +7,13 @@ To do this, reStrainingOrder harnesses single-nucleotide polymorphism (SNP) info
 
 reStrainingOrder is intended to work with most common types of Illumina sequencing - including `RNA-seq`, `ChIP-seq`, `ATAC-seq` or any kind of `Bisulfite-seq`. Supported aligners include [`Bowtie2`](https://github.com/BenLangmead/bowtie2), [`HISAT2`](https://ccb.jhu.edu/software/hisat2/index.shtml), [`STAR`](https://github.com/alexdobin/STAR), and [`Bismark`](https://github.com/FelixKrueger/Bismark) (Oxford comma, anyone?).
 
+#### Pure Strain example report
+
+Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) strain. If the single-strain compatibility score is > 99%, one doesn't really need to look any further.
+
+#### Hybrid example report
+
+
 
 ## Installation
 
