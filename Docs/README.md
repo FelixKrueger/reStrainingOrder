@@ -1,3 +1,6 @@
+[<img title="Babraham Bioinformatics" style="float:right;margin:20px 20 20 600px" id="Babraham Bioinformatics" src="Images/bioinformatics_logo.png" height="88" >](http://www.bioinformatics.babraham.ac.uk/index.html)
+
+<img title="Odd One Out" align="right" id="header_img" src="Images/mice_logo.png">
 # reStrainingOrder - Mouse Strain Identification
 
 ## User Guide - v0.1.0
@@ -5,7 +8,6 @@
 
 This User Guide outlines how reStrainingOrder tools work and gives more details for each individual step.
 
-[<img title="Babraham Bioinformatics" style="float:right;margin:20px 20 20 600px" id="Babraham Bioinformatics" src="Images/logo.png" height="88" >](http://www.bioinformatics.babraham.ac.uk/index.html)
 
 
 Last update: 02/07/2019
