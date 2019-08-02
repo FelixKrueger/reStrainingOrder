@@ -11,8 +11,8 @@ This User Guide outlines how reStrainingOrder tools work and gives more details 
 Last update: 02/07/2019
 
 #### Table of Contents
-* [Introduction](#version-060)
-* [Methodology](#adaptive-quality-and-adapter-trimming-with-trim-galore)
+* [Quick Reference](#quick-reference)
+* 1. [Installation Notes](#which-kind-of-files-are-supported)
   1. [Quality Trimming](#step-1-quality-trimming)
   2. [Adapter Trimming](#step-2-adapter-trimming)
     - [Auto-detection](#adapter-auto-detection)
@@ -23,7 +23,7 @@ Last update: 02/07/2019
   * [RRBS-specific options](#rrbs-specific-options-mspi-digested-material)
   * [Paired-end specific options](#paired-end-specific-options)
 
-# 1) Quick Reference
+## Quick Reference
 
 
 Bismark needs a working version of Perl and it is run from the command line. Furthermore, [Bowtie 2](http://bowtie-bio.sourceforge.net/bowtie2) or [HISAT2](https://ccb.jhu.edu/software/hisat2/index.shtml) needs to be installed on your computer. For more information on how to run Bismark with Bowtie 2 please go to the end of this manual.
@@ -33,18 +33,18 @@ First you need to download a reference genome and place it in a genome folder. G
 We would like to hear your comments or suggestions! Please e-mail [felix.krueger@babraham.ac.uk](mailto:felix.krueger@babraham.ac.uk)
 
 
-## Which kind of files are supported?
+### Which kind of files are supported?
 
 reStrainingOrder should work with 
 
-## Installation notes
+### Installation notes
 
 
 ```
 tar xzf reStrainingOrder_v0.X.Y.tar.gz
 ```
 
-## Dependencies
+### Dependencies
 reStrainingOrder requires a working version of Perl and [Samtools](http://samtools.sourceforge.net/) to be installed on your machine. It is assumed that the samtools executable is in your `PATH` unless the path is specified manually with:
 ```
 --samtools_path </../../samtools>
