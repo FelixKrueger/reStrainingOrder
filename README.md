@@ -10,7 +10,7 @@ reStrainingOrder is intended to work with most common types of Illumina sequenci
 
 ## Installation
 
-Most of reStrainingOrder is written in Perl and is executed from the command line. To install reStrainingOrder simply download the latest release of the code from the [Releases page](https://github.com/FelixKrueger/SNPsplit/releases) and extract the files into a SNPsplit installation folder. The plotly.js JavaScript library comes packaged together with reStrainingOrder and does not need to be installed separately.
+Most of reStrainingOrder is written in Perl and is executed from the command line. To install reStrainingOrder simply download the latest release of the code from the [Releases page](https://github.com/FelixKrueger/reStrainingOrder/releases) and extract the files into a reStrainingOrder installation folder. The plotly.js JavaScript library comes packaged together with reStrainingOrder and does not need to be installed separately.
 
 reStrainingOrder requires the following tools installed and ideally available in the `PATH`:
 - [Samtools](http://samtools.sourceforge.net/)
