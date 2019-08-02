@@ -9,10 +9,11 @@ reStrainingOrder is intended to work with most common types of Illumina sequenci
 
 #### Pure Strain example report
 
-Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) strain. If the single-strain compatibility score is > 99%, one doesn't really need to look any further.
+Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) strain. If the single-strain compatibility score is > 99%, one doesn't really need to look any further. The allele-ratio also indicated that the sample is purely Black6.
 
 #### Hybrid example report
 
+Here is an example of a [129S1/CAST hybrid](http://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html) strain (public data from [GEO](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM753570)), aligned with Bismark/Bowtie2). The Hybrid Strain Compatibility Scores indicate that a 129S1_SvImJ/CAST_EiJ hybrid is > 99% compatible with the data. The allele-ratios between 129 and CAST are almost 1:1.
 
 
 ## Installation
