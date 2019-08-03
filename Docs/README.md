@@ -1,6 +1,6 @@
-[<img title="Babraham Bioinformatics" style="float:right;margin:0px 0 0 200px" id="Babraham Bioinformatics" src="Images/bioinformatics_logo.png" height="88" >](http://www.bioinformatics.babraham.ac.uk/index.html)
+[<img title="Babraham Bioinformatics" align="left" style="float:right;margin:50px 200px 200px 200px" id="Babraham Bioinformatics" src="Images/bioinformatics_logo.png" height="80">](http://www.bioinformatics.babraham.ac.uk/index.html)
 
-<img title="Odd One Out" align="right" width="150" id="header_img" src="Images/mice_logo.png">
+<img title="Odd One Out" align="right" width="200" id="header_img" src="Images/mice_logo.png">
 
 # reStrainingOrder - Mouse Strain Identification
 
@@ -10,7 +10,6 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 
 
 
-Last update: 02/08/2019
 
 #### Table of Contents
 * [Quick Reference](#quick-reference)
@@ -29,15 +28,18 @@ Last update: 02/08/2019
 ## Quick Reference
 
 
-We would like to hear your comments or suggestions! Please e-mail [felix.krueger@babraham.ac.uk](mailto:felix.krueger@babraham.ac.uk)
-
-
 ### Which kind of files are supported?
 
 reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq reads as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
-### Installation notes
 
+#### Feedback
+We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)
+
+
+
+
+### Installation notes
 
 ```
 tar xzf reStrainingOrder_v0.X.Y.tar.gz
@@ -52,6 +54,7 @@ reStrainingOrder requires a working version of Perl and [Samtools](http://samtoo
 
 ### Hardware requirements
 
+While the genome preparation and alignment parts are not very resource intensive, the scoring part `reStrainingOrder` 
 
 # The reStrainingOrder workflow in more detail
 
