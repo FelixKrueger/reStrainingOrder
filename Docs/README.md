@@ -98,7 +98,7 @@ If you have no further use for these files they may be deleted afterwards to sav
 
 **Chromosome 1 matrix file**
 
-The genome preparation command will also write out matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in a similar format:
+The genome preparation command will also write out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in a similar format:
 
 ```
 Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
@@ -121,7 +121,7 @@ Positions discarded as no strain had a high confidence call:	7,936,128
 Positions printed to THE CHR1 MATRIX in total:	5,506,653
 ```
 
-In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
+Not that only positions that have single REF/ALT genootype were considered (i.e. positions that had several ALT positions for different strains (e.g. REF: A, ALT: C,T) were skipped for simplicity. In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
 
 
 ### b) Indexing the MGP genome
