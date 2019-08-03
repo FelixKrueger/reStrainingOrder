@@ -9,8 +9,6 @@
 This User Guide outlines how reStrainingOrder works and gives details for each step.
 
 
-
-
 #### Table of Contents
 * [Quick Reference](#quick-reference)
   1. [Supported file types](#which-kind-of-files-are-supported)
@@ -56,16 +54,59 @@ While the genome preparation is not very resource hungry, the alignment and scor
 
 # The reStrainingOrder workflow in more detail
 
-## I - reStraining [genome preparation]
+## Step I - Genome preparation 
 
-This is a one-off process.
+This is a one-off process, performed by `reStraining`.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (e.g. at this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 strains) are masked by the ambiguity nucleobase `N` (**N-masking**).
+
+Here is a sample command for this step:
 
 ```
 reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
 ```
-## II - Alignment step
+
+This creates a folder (called `SNPs_directory`) to store the SNPs per chromosome. These files look like this
+
+```
+>11
+11	3100106	G	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+11	3100127	A	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+```
+And may be deleted afterwards to save disk space if you have no further use for them.
+
+It will also write out matrix file for chromosome 1, which is in a similar format:
+
+```
+Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
+1	3000023	C	A	1	1	0	0	0	0	1	1	0	1	0	0	1	0	0	0	1	0	0	0	0	0	0	0
+1	3000126	G	T	1	1	0	0	0	1	1	1	0	1	1	1	1	1	1	0	1	1	0	0	1	1	0	1
+1	3000185	G	T	1	1	1	1	0	0	1	1	0	0	0	0	1	1	0	1	0	1	1	1	1	0	0	1
+1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+```
+
+This matrix file is used as input for the SNP scoring (Step III: reStrainingOrder, see below). 
+
+#### Indexing the MGP genome
+
+**Bowtie2:**
+```
+bowtie2-build --threads 8 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+```
+**HISAT2:**
+```
+hisat2-build --threads 8 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+```
+
+**Bismark:**
+```
+bismark_genome_preparation --verbose --parallel 2 .
+```
+
+## Step II - Alignments to the MGP genome
+
+
 
 ### Specific considerations for more specialised applications or software
 
