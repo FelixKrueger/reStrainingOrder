@@ -62,7 +62,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 ### Running `reStraining`
 
-This is a one-off process, performed by `reStraining`.
+This is a one-off process.
 
 `reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**).
 
@@ -79,9 +79,11 @@ This command:
  * generates a SNP filtering and genome preparation report
 
 **N-masked genome folder**
+
 This folder and its contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#indexing-the-mgp-genome). 
 
 **SNP folder**
+
 The folder `SNPs_directory` store the SNPs per chromosome, the files are in this format:
 
 ```
@@ -95,9 +97,9 @@ These files may be deleted afterwards to save disk space if you have no further 
 
 
 
-**chr1 matrix file (`MGPv5_SNP_matrix_chr1.txt.gz`)**
+**Chromosome 1 matrix file**
 
-The genome preparation command will also write out matrix file for chromosome 1 only, which is in a similar format:
+The genome preparation command will also write out matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in a similar format:
 
 ```
 Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
@@ -107,17 +109,20 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
 
-This matrix file is used as input for the SNP scoring (Step III: reStrainingOrder, see below). 
+This matrix file is used as input for the SNP scoring ([reStrainingOrder, see below](#Step-III:-scoring-snps)). 
+
 
 ### Indexing the MGP genome
 
+Here are sample commands for some popular aligners using 4 cores each. Depending on your resources this process may take up to a few hours.
+
 **Bowtie2:**
 ```
-bowtie2-build --threads 8 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+bowtie2-build --threads 4 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
 ```
 **HISAT2:**
 ```
-hisat2-build --threads 8 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+hisat2-build --threads 4 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
 ```
 
 **Bismark:**
@@ -175,7 +180,7 @@ For SNPs which are masked by Ns in the genome no methylation call will be perfor
 A test data set will be available for download ...
 
 
-
+## Step III: Scoring SNPS
 
     
 # Credits
