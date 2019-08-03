@@ -30,11 +30,11 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 
 ### Which kind of files are supported?
 
-reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq reads as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
+reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 
 #### Feedback
-We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)
+We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)!
 
 
 
@@ -49,12 +49,11 @@ tar xzf reStrainingOrder_v0.X.Y.tar.gz
 reStrainingOrder requires a working version of Perl and [Samtools](http://samtools.sourceforge.net/) to be installed on your machine. It is assumed that the samtools executable is in your `PATH` unless the path is specified manually with:
 ```
 --samtools_path </../../samtools>
-
 ```
 
 ### Hardware requirements
 
-While the genome preparation and alignment parts are not very resource intensive, the scoring part `reStrainingOrder` 
+While the genome preparation is not very resource hungry, the alignment and scoring part are a bit more demanding. Assuming single core operation, alignments to the the multi-strain genome typically take up to 5GB of RAM for Bowtie2 or HISAT2, Bismark alignments may need between 12 and 18GB (directional/PBAT or non directional alignments). The scoring part `reStrainingOrder` currently takes ~20GB of RAM. For future versions we may look into reducing this memory footprint somewhat. 
 
 # The reStrainingOrder workflow in more detail
 
@@ -62,6 +61,9 @@ While the genome preparation and alignment parts are not very resource intensive
 
 `reStraining` is designed to read in a variant call file from the Mouse Genomes Project (e.g. this [latest file](ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz)) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
 
+```
+~/VersionControl/reStrainingOrder/reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
+```
 ## Specific considerations for more specialised applications or software
 
 ### RNA-Seq alignments with STAR: 
