@@ -37,10 +37,9 @@ reStrainingOrder should work with most types of Illumina sequencing reads. More 
 We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)!
 
 
-
-
 ### Installation notes
 
+Just download the latest version under releases, and extract the tar archive into a folder. Done.
 ```
 tar xzf reStrainingOrder_v0.X.Y.tar.gz
 ```
@@ -57,34 +56,36 @@ While the genome preparation is not very resource hungry, the alignment and scor
 
 # The reStrainingOrder workflow in more detail
 
-## reStraining - genome preparation
+## I - reStraining [genome preparation]
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (e.g. this [latest file](ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz)) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
+This is a one-off process.
+
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (e.g. at this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate new genome versions where the strain SNPs are either incorporated into the new genome (full sequence) or masked by the ambiguity nucleobase `N` (**N-masking**).
 
 ```
-~/VersionControl/reStrainingOrder/reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
+reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
 ```
-## Specific considerations for more specialised applications or software
+## II - Alignment step
 
-### RNA-Seq alignments with STAR: 
+### Specific considerations for more specialised applications or software
 
-Alignment files produced by the Spliced Transcripts Alignment to a Reference [(STAR) aligner](https://github.com/alexdobin/STAR/ "STAR") also work well with SNPsplit, however a few steps need to be adhered to make this work:
+#### RNA-Seq alignments with STAR: 
 
-**1)** Since SNPsplit only recognises the CIGAR operations M, I, D and N (see above), alignments need to be run in end-to-end mode and not using local alignments (which may result in soft-clipping). This can be accomplished using the option: `--alignEndsType EndToEnd`
+Alignment files produced by the Spliced Transcripts Alignment to a Reference [(STAR)](https://github.com/alexdobin/STAR/ "STAR")aligner also should also work well, however a few steps need to be adhered to make this work:
 
-**2)** SNPsplit requires the `MD:Z:` field of the BAM alignment to work out mismatches involving masked N positions. Since STAR doesn’t report the `MD:Z:` field by default it needs to be instructed to do so, e.g.: `--outSAMattributes NH HI NM MD`
+**1)** Since reStrainingOrder only recognises the CIGAR operations M, I, D and N, alignments need to be run in end-to-end mode and not using local alignments (which may result in soft-clipping). This can be accomplished using the option: `--alignEndsType EndToEnd`
+
+**2)** reStrainingOrder requires the `MD:Z:` field of the BAM alignment to work out mismatches involving masked N positions. Since STAR doesn’t report the `MD:Z:` field by default it needs to be instructed to do so, e.g.: `--outSAMattributes NH HI NM MD`
 
 **3)** To save some time and avoid having to sort the reads by name, STAR can be told to leave R1 and R2 following each other in the BAM file using the option: `--outSAMtype BAM Unsorted`
 
 ### Alignments with HISAT2:
 
-DNA or RNA alignment files produced by [HISAT2](https://github.com/infphilo/hisat2 "HISAT2") also work well with SNPsplit if you make sure that HISAT2 doesn’t perform soft-clipping. At the time of writing the current version of HISAT2 (2.0.3-beta) does perform soft-clipping (CIGAR operation: S) even though this is not well documented (or in fact the documentation on Github suggests that the default mode is end-to-end which should not perform any soft-clipping whatsoever). Until the end-to-end mode works as expected users will have to set the penalty for soft-clipping so high that it is effectively not performed (`--sp` is the option governing the soft-clipping penalty). We suggest adding the following option to the HISAT2 command: `--sp 1000,1000`
-
-**EDIT:** HISAT2 does now also have an option `--no-softclip` which should have the same effect.
+DNA or RNA alignment files produced by [HISAT2](https://github.com/infphilo/hisat2 "HISAT2") also work well if you make sure that HISAT2 doesn’t perform soft-clipping. At the time of writing HISAT2 does perform soft-clipping (CIGAR operation: `S`) by default, so you need to specify the option `--no-softclip`.
 
 ### Alignments with BWA
 
-The other very popular Burrows-Wheeler Aligner ([BWA](http://bio-bwa.sourceforge.net/ "BWA homepage at SourceForge")) is unfortunately **not compatible** with SNPsplit alignment sorting as was [disscussed in more detail here](https://github.com/FelixKrueger/SNPsplit/issues/19 "BWA alignments are not compatible with SNPsplit"). Briefly, the reason for this is that BWA randomly replaces the ambiguity nucleobase `N` in the reference by either `C`, `A`, `T` or `G`, thereby rendering an N-masked allele-sorting process impossible.
+The other very popular Burrows-Wheeler Aligner ([BWA](http://bio-bwa.sourceforge.net/ "BWA homepage at SourceForge")) is unfortunately **not compatible** with reStrainingOrder processing as was [disscussed in more detail here](https://github.com/FelixKrueger/SNPsplit/issues/19 "BWA alignments are not compatible with SNPsplit"). Briefly, the reason for this is that BWA randomly replaces the ambiguity nucleobase `N` in the reference by either `C`, `A`, `T` or `G`, thereby rendering an N-masked allele-sorting process impossible.
 
 ### Bisulfite-Seq data: 
 
