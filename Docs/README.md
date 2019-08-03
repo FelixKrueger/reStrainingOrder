@@ -60,7 +60,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 ## Step I - Genome preparation 
 
-### Running `reStraining`
+### a) Running `reStraining`
 
 This is a one-off process.
 
@@ -80,11 +80,11 @@ This command:
 
 **N-masked genome folder**
 
-This folder and its contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#indexing-the-mgp-genome). 
+This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#indexing-the-mgp-genome). 
 
 **SNP folder**
 
-The folder `SNPs_directory` store the SNPs per chromosome, the files are in this format:
+The folder `SNPs_directory` stores files containing SNPs per chromosome, the files are in this format (here for chr11):
 
 ```
 >11
@@ -93,8 +93,7 @@ The folder `SNPs_directory` store the SNPs per chromosome, the files are in this
 11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
 
-These files may be deleted afterwards to save disk space if you have no further use for them (they are used for the N-masking process).
-
+If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process).
 
 
 **Chromosome 1 matrix file**
@@ -109,10 +108,23 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
 
-This matrix file is used as input for the SNP scoring ([reStrainingOrder, see below](#Step-III:-scoring-snps)). 
+This matrix file is used as input for the SNP scoring process ([reStrainingOrder, see below](#Step-III:-scoring-snps)). The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome...70M positions!). This is the SNP filtering summary:
+
+```
+SNP position summary for all MGP strains (based on mouse genome build GRCm38)
+===========================================================================
+
+Positions read in total:	78,772,544
+Positions skipped because the REF/ALT bases were not well defined:	960,167
+Positions discarded as no strain had a high confidence call:	7,936,128
+
+Positions printed to THE CHR1 MATRIX in total:	5,506,653
+```
+
+In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
 
 
-### Indexing the MGP genome
+### b) Indexing the MGP genome
 
 Here are sample commands for some popular aligners using 4 cores each. Depending on your resources this process may take up to a few hours.
 
