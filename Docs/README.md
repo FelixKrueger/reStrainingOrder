@@ -31,34 +31,40 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 
-#### Feedback
-We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)!
 
 
-### Installation notes
+#### Installation notes
 
 Just download the latest version under releases, and extract the tar archive into a folder. Done.
 ```
 tar xzf reStrainingOrder_v0.X.Y.tar.gz
 ```
 
-### Dependencies
+#### Dependencies
+
 reStrainingOrder requires a working version of Perl and [Samtools](http://samtools.sourceforge.net/) to be installed on your machine. It is assumed that the samtools executable is in your `PATH` unless the path is specified manually with:
 ```
 --samtools_path </../../samtools>
 ```
 
-### Hardware requirements
+#### Hardware requirements
 
 While the genome preparation is not very resource hungry, the alignment and scoring part are a bit more demanding. Assuming single core operation, alignments to the the multi-strain genome typically take up to 5GB of RAM for Bowtie2 or HISAT2, Bismark alignments may need between 12 and 18GB (directional/PBAT or non directional alignments). The scoring part `reStrainingOrder` currently takes ~20GB of RAM. For future versions we may look into reducing this memory footprint somewhat. 
+
+#### Feedback
+
+We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)!
+
 
 # The reStrainingOrder workflow in more detail
 
 ## Step I - Genome preparation 
 
+### Running `reStraining`
+
 This is a one-off process, performed by `reStraining`.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 strains) are masked by the ambiguity nucleobase `N` (**N-masking**).
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**).
 
 Here is a sample command for this step:
 
@@ -66,7 +72,17 @@ Here is a sample command for this step:
 reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
 ```
 
-This creates a folder (called `SNPs_directory`) to store the SNPs per chromosome. These files look like this
+This command:
+ * creates a folder for the new N-masked genome (`MGP_strains_N-masked`)
+ * creates a folder to store the SNP information per chromosome (`SNPs_directory`)
+ * produces a high confidence SNP matrix for chromosome 1
+ * generates a SNP filtering and genome preparation report
+
+**N-masked genome folder**
+This folder and its contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#indexing-the-mgp-genome). 
+
+**SNP folder**
+The folder `SNPs_directory` store the SNPs per chromosome, the files are in this format:
 
 ```
 >11
@@ -74,9 +90,14 @@ This creates a folder (called `SNPs_directory`) to store the SNPs per chromosome
 11	3100127	A	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
 11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
-And may be deleted afterwards to save disk space if you have no further use for them.
 
-It will also write out matrix file for chromosome 1, which is in a similar format:
+These files may be deleted afterwards to save disk space if you have no further use for them (they are used for the N-masking process).
+
+
+
+**chr1 matrix file (`MGPv5_SNP_matrix_chr1.txt.gz`)**
+
+The genome preparation command will also write out matrix file for chromosome 1 only, which is in a similar format:
 
 ```
 Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
@@ -88,7 +109,7 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 
 This matrix file is used as input for the SNP scoring (Step III: reStrainingOrder, see below). 
 
-#### Indexing the MGP genome
+### Indexing the MGP genome
 
 **Bowtie2:**
 ```
