@@ -17,8 +17,8 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
     - [Auto-detection](#adapter-auto-detection)
     - [Manual adapter sequence specification](#manual-adapter-sequence-specification)
  * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
-  3. [Removing Short Sequences](#step-3-removing-short-sequences)
-  4. [Specialised Trimming - hard- and Epigenetic Clock Trimming](#step-4-specialised-trimming)
+  1. [Genome preparation](#Step-I---Genome-preparation)
+  2. [Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
 * [Full list of options for Trim Galore!](#full-list-of-options-for-trim-galore)
   * [RRBS-specific options](#rrbs-specific-options-mspi-digested-material)
   * [Paired-end specific options](#paired-end-specific-options)
@@ -64,7 +64,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 This is a one-off process.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**).
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes four hours and requires some 6GB of memory.
 
 Here is a sample command for this step:
 
@@ -74,31 +74,18 @@ reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch
 
 This command:
  * creates a folder for the new N-masked genome (`MGP_strains_N-masked`)
+ * produces a high confidence SNP matrix for chromosome 1 (`MGPv5_SNP_matrix_chr1.txt.gz`)
  * creates a folder to store the SNP information per chromosome (`SNPs_directory`)
- * produces a high confidence SNP matrix for chromosome 1
  * generates a SNP filtering and genome preparation report
 
 **N-masked genome folder**
 
-This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#indexing-the-mgp-genome). 
-
-**SNP folder**
-
-The folder `SNPs_directory` stores files containing SNPs per chromosome, the files are in this format (here for chr11):
-
-```
->11
-11	3100106	G	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
-11	3100127	A	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
-11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
-```
-
-If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process).
+This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#b)-indexing-the-mgp-genome). 
 
 
 **Chromosome 1 matrix file**
 
-The genome preparation command will also write out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in a similar format:
+The genome preparation command also writes out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in the following format:
 
 ```
 Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
@@ -107,8 +94,9 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 1	3000185	G	T	1	1	1	1	0	0	1	1	0	0	0	0	1	1	0	1	0	1	1	1	1	0	0	1
 1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
+A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that there is the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process ([reStrainingOrder, see below](#Step-III:-scoring-snps)). 
 
-This matrix file is used as input for the SNP scoring process ([reStrainingOrder, see below](#Step-III:-scoring-snps)). The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome...70M positions!). This is the SNP filtering summary:
+The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome...70M positions!). This is the SNP filtering summary:
 
 ```
 SNP position summary for all MGP strains (based on mouse genome build GRCm38)
@@ -121,10 +109,29 @@ Positions discarded as no strain had a high confidence call:	7,936,128
 Positions printed to THE CHR1 MATRIX in total:	5,506,653
 ```
 
-Not that only positions that have single REF/ALT genootype were considered (i.e. positions that had several ALT positions for different strains (e.g. REF: A, ALT: C,T) were skipped for simplicity. In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
+Not that only positions that have single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
+
+**SNP folder**
+
+The folder `SNPs_directory` stores files containing SNPs per chromosome, the files are in this format (identical to the Chr1 matrix but without header, here for chr11):
+
+```
+>11
+11	3100106	G	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+11	3100127	A	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+```
+
+If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process).
+
+**SNP filtering and genome preparation reports**
+
+These files are intended for record keeping purposes.
 
 
 ### b) Indexing the MGP genome
+
+Again - this is a one-off process.
 
 Here are sample commands for some popular aligners using 4 cores each. Depending on your resources this process may take up to a few hours.
 
