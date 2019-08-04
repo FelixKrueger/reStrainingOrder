@@ -29,7 +29,7 @@ install:
   - make install
   - export PATH=/home/travis/samtools/bin:$PATH
   - samtools --version  
-  - cd /home/travis/build/FelixKrueger/reStrainingOrder/
+  # - cd /home/travis/build/FelixKrueger/reStrainingOrder/
   
   
  
