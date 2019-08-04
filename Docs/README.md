@@ -80,7 +80,7 @@ This command:
 
 **N-masked genome folder**
 
-This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#b)-indexing-the-mgp-genome). 
+This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#b\)-indexing-the-mgp-genome). 
 
 
 **Chromosome 1 matrix file**
@@ -109,7 +109,8 @@ Positions discarded as no strain had a high confidence call:	7,936,128
 Positions printed to THE CHR1 MATRIX in total:	5,506,653
 ```
 
-Not that only positions that have single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
+**PLease note** that only positions that have a single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. Also positions where the reference sequence did not have a DNA bas and positions with no hight confidence SNP call in any of the strains were skipped entirely. 
+In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
 
 **SNP folder**
 
@@ -133,7 +134,7 @@ These files are intended for record keeping purposes.
 
 Again - this is a one-off process.
 
-Here are sample commands for some popular aligners using 4 cores each. Depending on your resources this process may take up to a few hours.
+Here are sample commands for some popular aligners using 4 cores each (just copy-paste). Depending on your resources this process may take up to a few hours.
 
 **Bowtie2:**
 ```
@@ -150,6 +151,12 @@ bismark_genome_preparation --verbose --parallel 2 .
 ```
 
 ## Step II - Alignments to the MGP genome
+
+Here I will only briefly mention a few aspects that affect the alignment step (in no particular order):
+
+- Reads should be adapter- and qaulity-trimmed before aligning them to the `MGP.N-masked` genome. As we are later on scoring single bp matches/mistmaches sequences should be of good quality. To avoid a "garbage-in-garbage-out" scenario, a single run through [Trim Galore](https://github.com/FelixKrueger/TrimGalore) or similar should suffice.
+
+- 
 
 
 
