@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/FelixKrueger/reStrainingOrder.svg?branch=master)](https://travis-ci.org/FelixKrueger/TrimGalore)
+[![Build Status](https://travis-ci.org/FelixKrueger/reStrainingOrder.svg?branch=master)](https://travis-ci.org/FelixKrueger/reStrainingOrder)
 
 <img title="Odd One Out" align="right" id="header_img" src="Docs/Images/mice_logo.png">
 
