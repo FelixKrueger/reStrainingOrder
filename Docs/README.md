@@ -29,14 +29,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 ## Quick Reference
 
 
-### Which kind of files are supported?
+#### Which kind of files are supported?
 
 reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach include `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 
 
 
-### Installation notes
+#### Installation notes
 
 Just download the latest version under [releases](https://github.com/FelixKrueger/reStrainingOrder/releases), and extract the tar archive into a folder. Done.
 ```
@@ -67,7 +67,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 This is a one-off process.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes four hours and requires some 6GB of memory.
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz (FTP links are not rendered nicely in Github markdown)) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes four hours on our server and requires some 6GB of memory.
 
 Here is a sample command for this step:
 
@@ -76,19 +76,19 @@ reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch
 ```
 
 This command:
- * creates a folder for the new N-masked genome (`MGP_strains_N-masked`)
- * produces a high confidence SNP matrix for chromosome 1 (`MGPv5_SNP_matrix_chr1.txt.gz`)
+ * creates a folder for the new N-masked genome
+ * produces a high confidence SNP matrix for chromosome 1
  * creates a folder to store the SNP information per chromosome (`SNPs_directory`)
  * generates a SNP filtering and genome preparation report
 
 **N-masked genome folder**
 
-This folder and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#b\)-indexing-the-mgp-genome). 
+This folder (called `MGP_strains_N-masked`) and its FastA contents are vital for subsequent steps. For sample commands to index the new N-masked sequence files please [see below](#b\)-indexing-the-mgp-genome). 
 
 
 **Chromosome 1 matrix file**
 
-The genome preparation command also writes out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in the following format:
+The genome preparation command writes out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in the following format:
 
 ```
 Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
@@ -97,7 +97,7 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 1	3000185	G	T	1	1	1	1	0	0	1	1	0	0	0	0	1	1	0	1	0	1	1	1	1	0	0	1
 1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
-A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that there is the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process ([reStrainingOrder, see below](#Step-III:-scoring-snps)). 
+A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that it contains the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process ([reStrainingOrder, see below](#step-III\:-scoring-snps) ). 
 
 The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome...70M positions!). This is the SNP filtering summary:
 
