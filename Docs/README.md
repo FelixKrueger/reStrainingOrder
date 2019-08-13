@@ -163,15 +163,15 @@ Here I will only briefly mention a few aspects that affect the alignment step (i
 
 ### Specific considerations for more specialised applications or software
 
-### Alignments with Bowtie2
+#### Alignments with Bowtie2
 
 The output format of Bowtie2 is compatible with reStrainingOrder in its default end-to-end mode. Alignments in `--local` mode are not supported.
 
-### Alignments with Bismark
+#### Alignments with Bismark
 
 The output format of Bismark files with either Bowtie2 or HISAT2 are generally compatible with reStrainingOrder in their default mode (end-to-end mapping). Alignments in `--local` mode are not supported.
 
-### Alignments with HISAT2:
+#### Alignments with HISAT2:
 
 DNA or RNA alignment files produced by [HISAT2](https://github.com/infphilo/hisat2 "HISAT2") also work well if you make sure that HISAT2 doesn’t perform soft-clipping. At the time of writing HISAT2 does perform soft-clipping (CIGAR operation: `S`) by default, so you need to specify the option `--no-softclip`.
 
@@ -185,38 +185,27 @@ Alignment files produced by the Spliced Transcripts Alignment to a Reference [(S
 
 **3)** To save some time and avoid having to sort the reads by name, STAR can be told to leave R1 and R2 following each other in the BAM file using the option: `--outSAMtype BAM Unsorted`
 
-### Alignments with BWA
+#### Alignments with BWA
 
 The other very popular Burrows-Wheeler Aligner ([BWA](http://bio-bwa.sourceforge.net/ "BWA homepage at SourceForge")) is unfortunately **not compatible** with reStrainingOrder processing as was [disscussed in more detail here](https://github.com/FelixKrueger/SNPsplit/issues/19 "BWA alignments are not compatible with SNPsplit"). Briefly, the reason for this is that BWA randomly replaces the ambiguity nucleobase `N` in the reference by either `C`, `A`, `T` or `G`, thereby rendering an N-masked allele-sorting process impossible.
 
-### Bisulfite-Seq data: 
+#### Bisulfite-Seq data: 
 
 This mode assumes input data has been processed with the bisulfite mapping tool [Bismark](https://github.com/FelixKrueger/Bismark "Bismark project page on Github"). reStrainingOrder will run a quick check at the start of a run to see if the file provided appears to be a Bismark file, and set the flags `--bisulfite` automatically. Bisulfite (`--bisulfite`) mode can also be set manually.
 
 ##### Utilisation of SNP positions and allele assignment of bisulfite reads
-In contrast to the standard mode of using all known SNP positions, SNPs involving C to T transitions may not be used for allele-specific sorting since they might reflect either a SNP or a methylation state. This includes all of the following Reference/SNP combinations: 
+In contrast to the standard mode of using all known SNP positions, SNPs involving C to T transitions may not be used for allele-specific scoring since they might reflect either a SNP or a methylation state. This includes all of the following Reference/SNP combinations: 
 
 C/T or T/C for forward strand alignments, and G/A or A/G for reverse strand alignments. 
 
-The number of SNP positions that have been skipped because of this bisulfite ambiguity is reported in the report file. These positions may however be used to assign opposing strand alignments since they do not involve C to T transitions directly. For that reason, the bisulfite call processing also extracts the bisulfite strand information from the alignments in addition to the base call at the position involved. For any SNPs involving C positions that are not C to T SNPs both methylation states, i.e. C and T, are allowed to match the C position.
-
-For SNPs which are masked by Ns in the genome no methylation call will be performed, i.e. they will receive a `.` (dot) in the methylation call string. This means that SNP positions are used for allele-sorting only but do not participate in calling methylation. While this may reduce the number of total methylation calls somewhat it effectively eliminates the problem of using positions with potentially incorrect methylation status.
-
-
- 
-
-
-#### Single strain mode:
-**1)** The VCF file is read and filtered for high-confidence SNPs in the strain specified with   strain <name>
-**2)** The reference genome (given with `--reference_genome <genome>`) is read into memory, and the filtered high-confidence SNP positions are incorporated either as N-masking (default), or full sequence (option `--full_sequence`)
-
-
-## test data set
-A test data set will be available for download ...
+The number of SNP positions that have been skipped because of this bisulfite ambiguity is reported in the report file. These positions may however be used to assign opposing strand alignments since they do not involve C to T transitions directly. For that reason, the bisulfite call processing also extracts the bisulfite strand information from the alignments in addition to the base call at the position involved. For any SNPs involving C positions that are not C to T SNPs both methylation states, i.e. C and T, are allowed to match the C position. 
 
 
 ## Step III - Scoring SNPs
 
+#### Single strain mode:
+**1)** The VCF file is read and filtered for high-confidence SNPs in the strain specified with   strain <name>
+**2)** The reference genome (given with `--reference_genome <genome>`) is read into memory, and the filtered high-confidence SNP positions are incorporated either as N-masking (default).
     
 # Credits
 reStrainingOrder was written by Felix Krueger at the [Babraham Bioinformatics Group](http://www.bioinformatics.babraham.ac.uk/).
