@@ -12,15 +12,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 #### Table of Contents
 * [Quick Reference](#quick-reference)
 * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
-  1. [Genome preparation](#Step-I---Genome-preparation)
+  1. [Step I: Genome preparation](#Step-I---Genome-preparation)
     - [Running reStraining](#a\)-running-reStraining)
        1. [Supported file types](#which-kind-of-files-are-supported)
        2. [Installation Notes](#installation-notes)
     - [Indexing the MGP genome](#b\)-indexing-the-MGP-genome)
-  2. [Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
-* [Full list of options for Trim Galore!](#full-list-of-options-for-trim-galore)
-  * [RRBS-specific options](#rrbs-specific-options-mspi-digested-material)
-  * [Paired-end specific options](#paired-end-specific-options)
+  2. [Step II: Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
+  3. [Step III:](#Step-III---Scoring-SNPs)
+
 
 ## Quick Reference
 
