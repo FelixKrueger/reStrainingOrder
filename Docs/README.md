@@ -14,6 +14,7 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
   1. [Supported file types](#which-kind-of-files-are-supported)
   2. [Installation Notes](#installation-notes)
   3. [Dependencies](#dependencies)
+  4. [Hardware requirementes](#hardware-requirements)
   4. [Feedback](#feedback)
  
  * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
@@ -28,14 +29,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 ## Quick Reference
 
 
-#### Which kind of files are supported?
+### Which kind of files are supported?
 
 reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach include `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 
 
 
-#### Installation notes
+### Installation notes
 
 Just download the latest version under [releases](https://github.com/FelixKrueger/reStrainingOrder/releases), and extract the tar archive into a folder. Done.
 ```
