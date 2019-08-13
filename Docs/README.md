@@ -10,15 +10,15 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 
 
 #### Table of Contents
-* [Quick Reference](#quick-reference)
-* [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
+- [Quick Reference](#quick-reference)
+- [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
   1. [Step I: Genome preparation](#Step-I---Genome-preparation)
     - [Running reStraining](#a\)-running-reStraining)
        1. [Supported file types](#which-kind-of-files-are-supported)
        2. [Installation Notes](#installation-notes)
     - [Indexing the MGP genome](#b\)-indexing-the-MGP-genome)
   2. [Step II: Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
-  3. [Step III:](#Step-III---Scoring-SNPs)
+  3. [Step III: Scoring SNPs](#Step-III---Scoring-SNPs)
 
 
 ## Quick Reference
@@ -107,13 +107,13 @@ Positions discarded as no strain had a high confidence call:	7,936,128
 Positions printed to THE CHR1 MATRIX in total:	5,506,653
 ```
 
-**PLease note** that only positions that have a single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. Also, positions where the reference sequence did not have a DNA base or positions with no high confidence SNP call in any of the strains were skipped entirely. 
+**Please note:** that only positions that have a single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. Also, positions where the reference sequence did not have a DNA base or positions with no high confidence SNP call in any of the strains were skipped entirely. 
 
 In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
 
 **SNP folder**
 
-The folder `SNPs_directory` stores files containing SNPs per chromosome, the files are in this format (identical to the chromosome 1 matrix file but without header, here for chr11):
+The folder `SNPs_directory` stores files containing SNPs per chromosome. The files are in this format (similar to the chr1 matrix file but without header, shown here for chr11):
 
 ```
 >11
@@ -122,7 +122,7 @@ The folder `SNPs_directory` stores files containing SNPs per chromosome, the fil
 11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
 
-If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process).
+If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process and have already served their purpose).
 
 
 **SNP filtering and genome preparation reports**
@@ -132,7 +132,7 @@ These files are intended for record keeping purposes.
 
 ### b) Indexing the MGP genome
 
-Again - this is a one-off process.
+This is again a one-off process.
 
 Here are sample commands for some popular aligners using 4 cores each (just copy-paste). Depending on your resources this process may take up to a few hours.
 
@@ -154,10 +154,11 @@ bismark_genome_preparation --verbose --parallel 2 .
 
 Here I will only briefly mention a few aspects that affect the alignment step (in no particular order):
 
-- Reads should be adapter- and qaulity-trimmed before aligning them to the `MGP.N-masked` genome. As we are later on scoring single bp matches/mistmaches sequences should be of good quality. To avoid a "garbage-in-garbage-out" scenario, a single run through [Trim Galore](https://github.com/FelixKrueger/TrimGalore) or similar should suffice.
+- Reads should be adapter- and quality-trimmed before aligning them to the `MGP.N-masked` genome. As we are scoring single bp matches/mismatches later on, sequences should be of good quality. To avoid a "garbage-in-garbage-out" scenario, a single run through [Trim Galore](https://github.com/FelixKrueger/TrimGalore) or similar tool should suffice.
 
-- 
+- Alignments to N-masked genomes take (considerably) longer than to their non-N-masked counterparts. In the interest of time, it might thus be advisable to use only a subset of the original input FastQ file(s). We have run tests files down-sampled to 10, 5 or 2 million reads, which all arrived at the same answer. Keep in mind though that reStrainingOrder only assays chromosome 1 which is ~7% of the entire mouse genome. Example: if you started from say merely 1 million reads, only a few (ten-)thousand of them might eventually end up aligning to chromosome 1, and out of those you would then only look at the ones covering N-masked positions... I think our suggestion would be: down-sampling: yes, but not not too far down (maybe 5-20M as a rough guideline?).
 
+- The aligner you use needs to be capable of aligning to genomes containing `N` nucleotides. This has already been documented for [SNPsplit here:](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md#specific-considerations-for-more-specialised-applications-or-software), but I will quickly list the most important points again here:
 
 
 ### Specific considerations for more specialised applications or software
