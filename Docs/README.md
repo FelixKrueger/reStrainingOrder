@@ -14,11 +14,8 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
   1. [Genome preparation](#Step-I---Genome-preparation)
     - [Running reStraining](#a\)-running-reStraining)
-     1. [Supported file types](#which-kind-of-files-are-supported)
-     2. [Installation Notes](#installation-notes)
-     3. [Dependencies](#dependencies)
-     4. [Hardware requirementes](#hardware-requirements)
-     5. [Feedback](#feedback)
+       1. [Supported file types](#which-kind-of-files-are-supported)
+       2. [Installation Notes](#installation-notes)
     - [Indexing the MGP genome](#b\)-indexing-the-MGP-genome)
   2. [Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
 * [Full list of options for Trim Galore!](#full-list-of-options-for-trim-galore)
@@ -96,7 +93,7 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB
 1	3000185	G	T	1	1	1	1	0	0	1	1	0	0	0	0	1	1	0	1	0	1	1	1	1	0	0	1
 1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 ```
-A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that it contains the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process (reStrainingOrder, see [below](#step-III\:-scoring-snps) ). 
+A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that it contains the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process (reStrainingOrder, [see below](#step-III---scoring-snps) ). 
 
 The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome, but with 70M positions this would be challenging...!). This is the SNP filtering summary:
 
@@ -210,7 +207,7 @@ For SNPs which are masked by Ns in the genome no methylation call will be perfor
 A test data set will be available for download ...
 
 
-## Step III: Scoring SNPS
+## Step III - Scoring SNPs
 
     
 # Credits
