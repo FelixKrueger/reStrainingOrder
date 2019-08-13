@@ -12,12 +12,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 #### Table of Contents
 * [Quick Reference](#quick-reference)
   1. [Supported file types](#which-kind-of-files-are-supported)
-  2. [Installation Notes](#step-1-quality-trimming)
-  2. [Adapter Trimming](#step-2-adapter-trimming)
-    - [Auto-detection](#adapter-auto-detection)
-    - [Manual adapter sequence specification](#manual-adapter-sequence-specification)
- * [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
+  2. [Installation Notes](#installation-notes)
+  3. [Dependencies](#dependencies)
+  4. [Hardware requirements](#hardware-erquirements)
+    [Manual adapter sequence specification](#manual-adapter-sequence-specification)
+* [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
   1. [Genome preparation](#Step-I---Genome-preparation)
+    - [Running reStraining](#a\)-running-reStraining)
+    - [Indexing the MGP genome](#b\)-indexing-the-MGP-genome)
   2. [Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
 * [Full list of options for Trim Galore!](#full-list-of-options-for-trim-galore)
   * [RRBS-specific options](#rrbs-specific-options-mspi-digested-material)
@@ -28,14 +30,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 
 ### Which kind of files are supported?
 
-reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach inlcude `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
+reStrainingOrder should work with most types of Illumina sequencing reads. More specifically, we have tested it with ChIP- and Input-seq, RNA-seq as well as different tpyes of Bisulfite-seq (WGBS, PBAT). Aligners that were shown to work well with the N-masked genome approach include `Bowtie2`, `HISAT2`, `STAR` and `Bismark`.
 
 
 
 
 #### Installation notes
 
-Just download the latest version under releases, and extract the tar archive into a folder. Done.
+Just download the latest version under [releases](https://github.com/FelixKrueger/reStrainingOrder/releases), and extract the tar archive into a folder. Done.
 ```
 tar xzf reStrainingOrder_v0.X.Y.tar.gz
 ```
@@ -49,7 +51,7 @@ reStrainingOrder requires a working version of Perl and [Samtools](http://samtoo
 
 #### Hardware requirements
 
-While the genome preparation is not very resource hungry, the alignment and scoring part are a bit more demanding. Assuming single core operation, alignments to the the multi-strain genome typically take up to 5GB of RAM for Bowtie2 or HISAT2, Bismark alignments may need between 12 and 18GB (directional/PBAT or non directional alignments). The scoring part `reStrainingOrder` currently takes ~20GB of RAM. For future versions we may look into reducing this memory footprint somewhat. 
+While the genome preparation is not very resource hungry, the alignment and scoring part are a bit more demanding. Assuming single core operation, alignments to the multi-strain genome typically take up to 5GB of RAM for Bowtie2 or HISAT2, Bismark alignments may need between 12 and 18GB (directional/PBAT or non-directional alignments). The scoring part `reStrainingOrder` currently takes ~20GB of RAM. For future versions we may look into reducing this memory footprint somewhat. 
 
 #### Feedback
 
