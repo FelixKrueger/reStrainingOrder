@@ -156,7 +156,7 @@ Here I will only briefly mention a few aspects that affect the alignment step (i
 
 - Reads should be adapter- and quality-trimmed before aligning them to the `MGP.N-masked` genome. As we are scoring single bp matches/mismatches later on, sequences should be of good quality. To avoid a "garbage-in-garbage-out" scenario, a single run through [Trim Galore](https://github.com/FelixKrueger/TrimGalore) or similar tool should suffice.
 
-- Alignments to N-masked genomes take (considerably) longer than to their non-N-masked counterparts. In the interest of time, it might thus be advisable to use only a subset of the original input FastQ file(s). We have run tests files down-sampled to 10, 5 or 2 million reads, which all arrived at the same answer. Keep in mind though that reStrainingOrder only assays chromosome 1 which is ~7% of the entire mouse genome. Example: if you started from say merely 1 million reads, only a few (ten-)thousand of them might eventually end up aligning to chromosome 1, and out of those you would then only look at the ones covering N-masked positions... I think our suggestion would be: down-sampling: yes, but not not too far down (maybe 5-20M as a rough guideline?).
+- Alignments to N-masked genomes take (considerably) longer than to their un-masked counterparts. In the interest of time, it might thus be advisable to use only a subset of the original input FastQ file(s). We have run tests with files down-sampled to 10, 5 or 2 million reads, which all arrived at the same answer. Keep in mind though that reStrainingOrder only assays chromosome 1 which is ~7% of the entire mouse genome. Example: if you started from say merely 1 million reads, only a few (ten-)thousand of them might eventually end up aligning to chromosome 1, and out of those you would then only look at the ones covering N-masked positions... I think our suggestion would be: down-sampling: yes, but not not too far down (maybe 5-20M as a rough guideline?).
 
 - The aligner you wish to employ needs to be capable of aligning to genomes containing `N` nucleotides. This has already been documented for [SNPsplit here](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md#specific-considerations-for-more-specialised-applications-or-software), but I will quickly list the most important points again here.
 
@@ -165,7 +165,7 @@ Here I will only briefly mention a few aspects that affect the alignment step (i
 
 #### Alignments with Bowtie2
 
-The output format of Bowtie2 is compatible with reStrainingOrder in its default end-to-end mode. Alignments in `--local` mode are not supported.
+The output format of Bowtie2 is compatible with reStrainingOrder in its default (= end-to-end) mode. Alignments in `--local` mode are not supported.
 
 #### Alignments with Bismark
 
@@ -187,25 +187,48 @@ Alignment files produced by the Spliced Transcripts Alignment to a Reference [(S
 
 #### Alignments with BWA
 
-The other very popular Burrows-Wheeler Aligner ([BWA](http://bio-bwa.sourceforge.net/ "BWA homepage at SourceForge")) is unfortunately **not compatible** with reStrainingOrder processing as was [disscussed in more detail here](https://github.com/FelixKrueger/SNPsplit/issues/19 "BWA alignments are not compatible with SNPsplit"). Briefly, the reason for this is that BWA randomly replaces the ambiguity nucleobase `N` in the reference by either `C`, `A`, `T` or `G`, thereby rendering an N-masked allele-sorting process impossible.
+The other very popular Burrows-Wheeler Aligner ([BWA](http://bio-bwa.sourceforge.net/ "BWA homepage at SourceForge")) is unfortunately **not compatible** with reStrainingOrder processing as was [discussed in more detail here](https://github.com/FelixKrueger/SNPsplit/issues/19 "BWA alignments are not compatible with SNPsplit"). Briefly, the reason for this is that BWA randomly replaces the ambiguity nucleobase `N` in the reference by either `C`, `A`, `T` or `G`, thereby rendering an N-masked allele-sorting process impossible.
 
 #### Bisulfite-Seq data: 
 
 This mode assumes input data has been processed with the bisulfite mapping tool [Bismark](https://github.com/FelixKrueger/Bismark "Bismark project page on Github"). reStrainingOrder will run a quick check at the start of a run to see if the file provided appears to be a Bismark file, and set the flags `--bisulfite` automatically. Bisulfite (`--bisulfite`) mode can also be set manually.
 
 ##### Utilisation of SNP positions and allele assignment of bisulfite reads
-In contrast to the standard mode of using all known SNP positions, SNPs involving C to T transitions may not be used for allele-specific scoring since they might reflect either a SNP or a methylation state. This includes all of the following Reference/SNP combinations: 
+In contrast to the standard mode of using all known SNP positions, SNPs involving C to T transitions may not be used for allele-specific scoring since they might reflect either a SNP or a methylation state. This includes all of the following Reference/ALT combinations: 
 
-C/T or T/C for forward strand alignments, and G/A or A/G for reverse strand alignments. 
+C/T or T/C for forward strand alignments, and 
+G/A or A/G for reverse strand alignments. 
 
 The number of SNP positions that have been skipped because of this bisulfite ambiguity is reported in the report file. These positions may however be used to assign opposing strand alignments since they do not involve C to T transitions directly. For that reason, the bisulfite call processing also extracts the bisulfite strand information from the alignments in addition to the base call at the position involved. For any SNPs involving C positions that are not C to T SNPs both methylation states, i.e. C and T, are allowed to match the C position. 
 
 
 ## Step III - Scoring SNPs
 
-#### Single strain mode:
+* Stores matrix of high confidence, single SNP positions on chr1
+
+* extract and store bases at N-masked positions (REF/ALT/OTHER)
+
+* Proceed differently for standard or bisulfite converted read (C/T positions cannot be used under certain conditions)
+
+
+* Calculate pure strain compatibility scores
+* Calculate all pairwise hybrid combination compatibility scores
+* Calculate allele-ratios for each hybrid combination
+
+
 **1)** The VCF file is read and filtered for high-confidence SNPs in the strain specified with   strain <name>
+  
 **2)** The reference genome (given with `--reference_genome <genome>`) is read into memory, and the filtered high-confidence SNP positions are incorporated either as N-masking (default).
+  
+#### Output: 
+
+General run statistics
+Pure strain compatibility scores
+Hybrid strain compatibility scores
+Hybrid allele-ratios
+
+HTML report
+
     
 # Credits
 reStrainingOrder was written by Felix Krueger at the [Babraham Bioinformatics Group](http://www.bioinformatics.babraham.ac.uk/).
