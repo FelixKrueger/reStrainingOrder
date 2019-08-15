@@ -234,14 +234,14 @@ This file contains some general run statistics, e.g. the number reads processed,
 This tab-delimited text file contains the compatibility scores for potential single (pure) strains, and is in the format:  
 
 ```
-Strain  //  Positions covered   //   Agreeing GT   //   Disagreeing GT   //   agreement
+Strain // Positions covered  //  Agreeing GT  //  Disagreeing GT  //  agreement
 ```
 
 The numbers for agreeing/disagreeing genotype (GT) are the sum of all counts from reads overlapping N-masked positions across the entire run. To score as `agreeing`, a detected read base needs to match the expected base from the chr1 high-confidence matrix exactly. Any other base is scored as `disagreeing`. The agreement is then calculated as a compatibility percentage score.
 
-From what we have seen so far, if the pure strain compatibilty score is greater than ~ 98%, you can be reasonably sure that the strain you are looking at really is a pure strain. If this is the case, you **should not** look at potential hybrid combinations (as those numbers have to be equal or higher than pure the pure strain compatibility scores (see below). As a side note, pure strain files tend to result in ~99.6% pure strain compatibility scores, the missing 0.4% are probably a results of mis-mapping events and/or incorrect SNP annotations.
+From what we have seen so far, if the pure strain compatibilty score is greater than ~ 98%, you can be reasonably sure that the strain you are looking at really is a pure strain. If this is the case, you **should not** look at potential hybrid combinations (as those numbers have to be equal or higher than pure the pure strain compatibility scores (see below)). As a side note, pure strain files tend to result in ~99.6% pure strain compatibility scores, the missing 0.4% are probably a results of mis-mapping events and/or incorrect SNP annotations.
 
-Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) strain. If the single-strain compatibility score is > 99%, one doesn't really need to look any further. The allele-ratio also indicated that the sample is purely Black6.
+Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) strain. If the single-strain compatibility score is > 98%, one doesn't really need to look any further. The allele-ratio (see below) also indicated that the sample is purely Black6.
 
 
 **_Spretus_10M_bowtie2.reStrainingOrder.hybrid_scores.txt_**
@@ -249,10 +249,10 @@ Here is an example of a pure [C57BL/6 strain (Black6)](https://www.bioinformatic
 This tab-delimited text file contains the compatibility scores for potential hybrid strain combinations, and is in the format:  
 
 ```
-Potential Hybrid   //   Agreeing   //   Disagreeing   //   Percentage agreement   //   Strain1 Index   //   Strain2 Index
+Potential Hybrid  //  Agreeing  //  Disagreeing  //  Percentage agreement  //  Strain1 Index  //  Strain2 Index
 ```
 
-To score as `agreeing` for a given Strain 1/Strain 2 hybrid, a detected read base needs to match **either** the expected base of Strain 1 **or** Strain 2, from the chr1 high-confidence matrix exactly. This means that the compatibility scores for potential hybrid combinations is by definition equal to or higher than the pure strain scores. **Please do not bother** looking at strain combinations if the pure strain compatibility scores already fully explain a sample genetic origin (e.g. >98% pure strain compatibility).
+To score as `agreeing` for a given Strain 1/Strain 2 hybrid combination, a detected read base needs to match **either** the expected base of Strain 1 **or** Strain 2, from the chr1 high-confidence matrix. This means that the compatibility scores for potential hybrid combinations are by definition equal to or higher than the pure strain scores. **Please do not bother** looking at strain combinations if the pure strain compatibility scores already fully explain a sample genetic origin (e.g. >98% pure strain compatibility).
 
 
 **_Spretus_10M_bowtie2.reStrainingOrder.hybrid_ratios.txt_**
@@ -260,12 +260,12 @@ To score as `agreeing` for a given Strain 1/Strain 2 hybrid, a detected read bas
 This tab-delimited text file contains the allelic ratios for potential hybrid strain combinations, and is in the format: 
 
 ```
-Strain1   //   Strain1 Count   //   Strain1 Percentage   //   Strain2   //   Strain2 Count   //   Strain2 Percentage
+Strain1  //  Strain1 Count  //  Strain1 Percentage  //  Strain2  //  Strain2 Count  //  Strain2 Percentage
 ```
 
 This statistic can be very informative if you are expecting allelic ratios of 50:50, 25:75 etc. Pure strains should come out with allelic ratios of close to 100:0 
 
-Here is an example of a [129S1/CAST hybrid](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html) strain (public data taken from this [GEO entry](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM753570), aligned with Bismark/Bowtie2). The Hybrid Strain Compatibility Scores indicate that a 129S1_SvImJ/CAST_EiJ hybrid is > 99% compatible with the data. The allele-ratios between 129 and CAST are almost 1:1.
+Here is an example of a [129S1/CAST hybrid](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html) strain (public data taken from this [GEO entry](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM753570), aligned with Bismark/Bowtie2). The Hybrid Strain Compatibility Scores indicate that a 129S1_SvImJ/CAST_EiJ hybrid is > 99% compatible with the data. The allele-ratios between 129 and CAST are almost 50:50.
 
 
 **_Spretus_10M_bowtie2.reStrainingOrder.summary_stats.txt_**
@@ -275,7 +275,9 @@ This file simply concatenates all informative stats from the files above. This f
 
 **_Spretus_10M_bowtie2.reStrainingOrder.summary_stats.html_**
 
-This file is generated by `reStrainingReport` (for examples see above). It is called automatically at the end of each run of `reStrainingOrder`, but can also be called stand-alone.
+This file is generated by `reStrainingReport` (for examples see above). It is called automatically at the end of each run of `reStrainingOrder`, but can also be called stand-alone. This step extracts all stats from all `*reStrainingOrder.summary_stats.txt` in a working directory, and generates HTML reports. In its current implementation, the report is limited to the top 30 most likely pure strains/ strain combinations. Again, examples are available [C57BL/6 strain (Black6) "Pure Black6"](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/pure_strain_example.html) or [129S1/CAST hybrid "129S1/CAST_EiJ hybrid"](https://www.bioinformatics.babraham.ac.uk/projects/reStrainingOrder/129_CAST_hybrid_example.html).
+
+`reStrainingReport` uses [plot.ly JS library](https://plot.ly/javascript/) (distributed with `reStrainingOrder`) to render the plots.
  
   
 
