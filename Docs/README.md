@@ -11,14 +11,14 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
 
 #### Table of Contents
 - [Quick Reference](#quick-reference)
-- [reStrainingOrder Workflow](#the-reStrainingOrder-workflow-in-more-detail)
+- [Workflow in more detail](#the-reStrainingOrder-workflow-in-more-detail)
   1. [Step I: Genome preparation](#Step-I---Genome-preparation)
     - [Running reStraining](#a\)-running-reStraining)
        1. [Supported file types](#which-kind-of-files-are-supported)
        2. [Installation Notes](#installation-notes)
     - [Indexing the MGP genome](#b\)-indexing-the-MGP-genome)
   2. [Step II: Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
-  3. [Step III: Scoring SNPs](#Step-III---Scoring-SNPs)
+  3. [Step III: Scoring SNPs (reStrainingOrder)](#Step-III---Scoring-SNPs)
 
 
 ## Quick Reference
@@ -204,16 +204,30 @@ The number of SNP positions that have been skipped because of this bisulfite amb
 
 ## Step III - Scoring SNPs
 
-* Stores matrix of high confidence, single SNP positions on chr1
+This step carries out the following tasks:
 
-* extract and store bases at N-masked positions (REF/ALT/OTHER)
+- read and store matrix of high confidence SNP positions on chromosome 1 (`MGPv5_SNP_matrix_chr1.txt.gz`)
 
-* Proceed differently for standard or bisulfite converted read (C/T positions cannot be used under certain conditions)
+- read BAM file, identify reads overlapping genomic N-masked positions, and store bases at N-masked positions (`REF`/`ALT`/`OTHER`). This step discriminates between standard genomic or bisulfite converted reads (C/T positions cannot be used under certain conditions, see above)
 
+Once the BAM file has finished processing, `reStrainingOrder` calculates the following statistics:
+  * Pure strain compatibility scores
+  * All pairwise hybrid combination compatibility scores
+  * Allele-ratios for each hybrid combination
 
-* Calculate pure strain compatibility scores
-* Calculate all pairwise hybrid combination compatibility scores
-* Calculate allele-ratios for each hybrid combination
+It creates a number of output files:
+
+A sample command could look like this:
+`reStrainingOrder --snp MGPv5_SNP_matrix_chr1.txt.gz Spretus_10M_simulated_bowtie2.bam`
+
+#### Output: 
+
+General run statistics
+Pure strain compatibility scores
+Hybrid strain compatibility scores
+Hybrid allele-ratios
+
+HTML report
 
 
 **1)** The VCF file is read and filtered for high-confidence SNPs in the strain specified with   strain <name>
@@ -228,6 +242,14 @@ Hybrid strain compatibility scores
 Hybrid allele-ratios
 
 HTML report
+
+
+Spretus_10M_simulated_bowtie2.reStrainingOrder.hybrid_ratios.txt
+Spretus_10M_simulated_bowtie2.reStrainingOrder.hybrid_scores.txt
+Spretus_10M_simulated_bowtie2.reStrainingOrder_report.txt
+Spretus_10M_simulated_bowtie2.reStrainingOrder.strain_scores.txt
+Spretus_10M_simulated_bowtie2.reStrainingOrder.summary_stats.html
+Spretus_10M_simulated_bowtie2.reStrainingOrder.summary_stats.txt
 
     
 # Credits
