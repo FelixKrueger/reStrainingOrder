@@ -17,6 +17,7 @@ This User Guide outlines how reStrainingOrder works and gives details for each s
       * [Indexing the MGP genome](#indexing-the-MGP-genome)
   2. [Step II: Alignments to the MGP N-masked genome](#Step-II---Alignments-to-the-MGP-genome)
   3. [Step III: Scoring SNPs (reStrainingOrder)](#Step-III---Scoring-SNPs)
+      * [Output files](#output)
 
 
 ## Quick Reference
@@ -56,7 +57,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 ## Step I - Genome preparation 
 
-### a) Running `reStraining`
+### Running `reStraining`
 
 This is a one-off process.
 
@@ -128,7 +129,7 @@ If you have no further use for these files they may be deleted afterwards to sav
 These files are intended for record keeping purposes.
 
 
-### b) Indexing the MGP genome
+### Indexing the MGP genome
 
 This is again a one-off process.
 
