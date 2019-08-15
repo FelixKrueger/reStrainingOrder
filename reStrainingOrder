@@ -25,7 +25,7 @@ use Cwd;
 my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.1.0_dev';
+my $pipeline_version = '0.1.0';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
@@ -1309,7 +1309,7 @@ sub read_snps{
 		my ($chr,$pos,$ref,$snp,@calls)  = (split /\t/);
 		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
-		last if ($snp_count == $stopat);
+		# last if ($snp_count == $stopat);
 	
 		### for N-masked genomes the SNPs are stored in an. hashes
 		$snps{$chr}->{$pos}->{ref} = $ref;
@@ -2319,7 +2319,7 @@ VERSION
 
 
     unless ($snp_file){
-		die "You need to provide a text file detailing SNPs with '--SNP_file your.file'. Please respecify!\n";
+		die "You need to provide a matrix file detailing SNPs on chromosome 1 with e.g. '--SNP_file MGPv5_SNP_matrix_chr1.txt.gz'. Please respecify!\n";
     }
 
     if ($no_sort){
@@ -2454,73 +2454,37 @@ sub print_helpfile{
 
       SYNOPSIS:
 
-	SNPsplit is designed to read in alignment files in SAM/BAM format and determine the allelic origin of reads
-	that cover known SNP positions. For this to work the alignment step must have been carried out against a
-	genome that had all SNP positions replaced by Ns, and a list of SNP positions between the two different genomes
-	has to be provided using the option --snp_file.
+	reStrainingOrder is designed to read in alignment files in BAM format and determine the genetic origin of reads
+	that cover known SNP positions. For this to work the alignment step must have been carried out against a multi-
+	strain mouse genome that had all SNP positions replaced by Ns (N-masking), a process carried out by the 'reStraining'
+	genome preparation. A matrix of all relevant SNP positions on chromosome 1 also needs to be provided using the option
+	--snp_file.
 
-	SNPsplit operates in two stages:
-
-	I) SNPsplit-tag: SNPsplit analyses reads (single-end mode) or read pairs (paired-end mode) for overlaps
-        with known SNP positions, and writes out a tagged BAM file in the same order as the original file.
-
-        II) SNPsplit-sort: the tagged BAM file is read in and is being sorted into allele-specific files. This process
-        may also be run as a stand-alone module (tag2sort).
+	For more information on the workflow and file formats, please see the User Guide documentation here:
+    	https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md
 
 
-        The SNPsplit-tag module determines whether a read can be assigned to a certain allele and appends an additional
-        optional field 'XX:Z:' to each read. The tag can be one of the following:
-
-        XX:Z:UA - Unassigned
-        XX:Z:G1 - Genome 1-specific
-        XX:Z:G2 - Genome 2-specific
-        XX:Z:CF - Conflicting
+      USAGE:      reStrainingOrder  [options] --snp_file MGPv5_SNP_matrix_chr1.txt.gz [input file(s)]
 
 
-        The SNPsplit-sort module reads in the tagged BAM file and sorts the reads (or read pairs) according to their XX:Z:
-        tag (or the combination of tags for paired-end or Hi-C reads) into subfiles.
+    input file(s)          Mapping output file to the N-masked MGP genome in BAM format. 
 
+    --snp_file <file>      Mandatory matrix file specifying SNP positions to be considered on chromosome 1; may be a plain
+                           text file or gzip compressed. The SNP matrix is expected to be in the following format:
 
-      USAGE:      SNPsplit  [options] --snp_file <SNP.file.gz> [input file(s)]
+                           Chromosome  Position   REF   ALT   [0 or 1 for each strain]
 
+                           Where 0 means REF base, and 1 means ALT base.
 
-    input file(s)          Mapping output file in SAM or BAM format. SAM files (ending in .sam) will first be
-    converted to BAM using Samtools.
-
-    --snp_file <file>      Mandatory file specifying SNP positions to be considered; may be a plain text file or
-                           gzip compressed. Currently, the SNP file is expected to be in the following format:
-
-                                       SNP-ID     Chromosome  Position    Strand   Ref/SNP
-                           example:   33941939        9       68878541       1       T/G
-
-                           Only the information contained in fields 'Chromosome', 'Position' and 'Reference/SNP base'
-                           are being used for analysis. The genome referred to as 'Ref' will be used as genome 1,
-                           the genome containing the 'SNP' base as genome 2.
-
-    --paired               Paired-end mode. (Default: OFF).
-
+    
     -o/--outdir <dir>      Write all output files into this directory. By default the output files will be written into
-                           the same folder as the input file(s). If the specified folder does not exist, SNPsplit will attempt
-                           to create it first. The path to the output folder can be either relative or absolute.
+                           the same folder as the input file(s). If the specified folder does not exist, it will be
+                           created first. The path to the output folder can be either relative or absolute.
 
-    --singletons           If the allele-tagged paired-end file also contains singleton alignments (which is the
-                           default for e.g. TopHat), these will be written out to extra files (ending in _st.bam)
-                           instead of writing everything to combined paired-end and singleton files. Default: OFF.
-
-    --no_sort              This option skips the sorting step if BAM files are already sorted by read name (e.g.
-                           Hi-C files generated by HiCUP). Please note that setting --no_sort for unsorted paired-end
-                           files will break the tagging process!
-
-    --hic                  Assumes Hi-C data processed with HiCUP (www.bioinformatics.babraham.ac.uk/projects/hicup/)
-                           as input, i.e. the input BAM file is paired-end and Reads 1 and 2 follow each other. Thus,
-                           this option also sets the flags --paired and --no_sort. Default: OFF.
-
+  
     --bisulfite            Assumes Bisulfite-Seq data processed with Bismark (www.bioinformatics.babraham.ac.uk/projects/bismark/)
-                           as input. In paired-end mode (--paired), Read 1 and Read 2 of a pair are expected to follow
-                           each other in consecutive lines. SNPsplit will run a quick check at the start of a run to see if the
-                           file provided appears to be a Bismark file, and set the flags --bisulfite and/or --paired
-                           automatically. In addition it will perform a quick check to see if a paired-end file appears
-                           to have been positionally sorted, and if not will set the --no_sort flag.
+                           as input. reStrainingOrder will run a quick check at the start of a run to see if the
+                           file provided appears to be a Bismark file, and set the flag --bisulfite automatically.
 
     --samtools_path        The path to your Samtools installation, e.g. /home/user/samtools/. Does not need to
                            be specified explicitly if Samtools is in the PATH already.
@@ -2528,114 +2492,16 @@ sub print_helpfile{
     --verbose              Verbose output (for debugging).
 
 
-
-
-    SNPsplit-sort specific options (tag2sort):
-    ==========================================
-
-    --conflicting/--weird  Reads or read pairs that were classified as 'Conflicting' (XX:Z:CF) will be written to
-                           an extra file (ending in .conflicting.bam) instead of being simply skipped. Reads may be
-                           classified as 'Conflicting' if a single read contains SNP information for both genomes at
-                           the same time, or if the SNP position was deleted from the read. Read-pairs are considered
-                           'Conflicting' if either read is was tagged with the XX:Z:CF flag. Default: OFF.
-
-    --sam                  The output will be written out in SAM format instead of BAM (default). SNPsplit will attempt to use
-                           the path to Samtools that was specified with --samtools_path, or, if it hasn't been
-                           specified, attempt to find Samtools in the PATH environment. If no installation of
-                           Samtools can be found, the SAM output will be compressed with GZIP instead (yielding a
-                           .sam.gz output file).
-
     --help                 Displays this help information and exits.
 
     --version              Displays version information and exits.
 
 
-                                   Script last modified: 11 December 2018
+                                   Script last modified: 15 August 2019
 
 
 EOF
     ;
   exit 1;
 }
-
-
-#Subroutine: maps_which_library
-# Takes current value (decimal) and the number of the library to evaluate
-# Returns:
-# 0 - read not map to library
-# 1 - read maps uniquely to this library but maps to no others
-# 2 - read multi-maps to this library but maps to no others
-# 3 - read maps uniquely to this library and maps to at least one other library
-# 4 - read multi-maps to this library and maps to at least one other library
-sub maps_which_library {
-    my ( $val, $library ) = @_;
-    my $single_map         = 0;
-    my $multi_map          = 0;
-    my $maps_other_library = 0;
-
-    my $pos_lib2 = $library * 2;
-    my $pos_lib1 = $pos_lib2 - 1;
-    my $bitshift_lib1;
-    my $bitshift_lib2;
-    my $bitshift_total;
-    my $new_val;
-
-    if ( bit_check( $val, $pos_lib2 ) ) {    #Multimaps library?
-        $multi_map = 1;
-
-        #Does read map to other libraries
-        $bitshift_lib2 = 1 << ( $pos_lib2 - 1 );
-        $bitshift_lib1 = 1 << ( $pos_lib1 - 1 );
-        $bitshift_total = $bitshift_lib2 | $bitshift_lib1;
-        $maps_other_library = 1 if ( $bitshift_total != $val );
-
-    } elsif ( bit_check( $val, $pos_lib1 ) ) {    #Unique maps library?
-        $single_map = 1;
-
-        #Does read map to other libraries
-        $bitshift_lib1 = 1 << ( $pos_lib1 - 1 );
-        $maps_other_library = 1 if ( $bitshift_lib1 != $val );
-    }
-
-    if ( $multi_map and $maps_other_library ) {
-        return 4;
-    } elsif ( $single_map and $maps_other_library ) {
-        return 3;
-    } elsif ($multi_map) {
-        return 2;
-    } elsif ($single_map) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-
-
-#Subroutine: bit_check
-#Takes a decimal number and a position in the binary equivalent (position1 is rightmost)
-#and returns whether it is 0 or 1
-sub bit_check {
-    my ( $decimal, $position ) = @_;
-    my $bitshift = 1 << ( $position - 1 );
-
-    if ( $decimal & $bitshift ) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-#Subroutine: bit_or
-#Takes a decimal number and a position in the binary equivalent (position1 is rightmost)
-#and converts 0->1 at that position
-#Returns new (or possibly original) decimal value
-sub bit_or {
-    my ( $decimal, $position ) = @_;
-    my $bitshift = 1 << ( $position - 1 );
-
-    my $new_decimal = $decimal | $bitshift;
-    return $new_decimal;
-}
-
 

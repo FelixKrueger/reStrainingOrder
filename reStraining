@@ -27,7 +27,7 @@ use Cwd;
 ### it will work with any other supplied VCF file. A new version of the SNP file is supposed to be released in the first half of 2019
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.1.0_dev';
+my $pipeline_version = '0.1.0';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build) = process_commandline ();
@@ -82,7 +82,6 @@ my $report = "reStrainingOrder_genome_preparation_report.txt";
 open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
 
 for my $chr (@chroms) {
-    # TODO: We might have to do this per chromosome so we don't store too many SNPs and use a huge amount of memory
     create_modified_chromosome($chr);
 }
 
@@ -745,16 +744,13 @@ sub process_commandline{
     my $help;
     my $version;
     my $vcf_file;
-    my $list_strains;
-    my $skip_filtering;
     my $genome_folder;
-    my $nmasking;
+    my $nmasking = 1; # This is the default
     
-    my $command_line = GetOptions ('help|man'             => \$help,
-				   'versions'             => \$version,
-				   'list_strains'         => \$list_strains,
-				   'vcf_file=s'           => \$vcf_file,
-				   'nmasking'             => \$nmasking,
+    my $command_line = GetOptions ('help'        => \$help,
+				   'versions'                    => \$version,
+				   'vcf_file=s'                  => \$vcf_file,
+				   'nmasking'                    => \$nmasking,
 				   'genome|reference_genome=s'   => \$genome_folder,
 	);
   
@@ -789,27 +785,13 @@ VERSION
     	}
     }
     else{
-	   unless($skip_filtering){
-	       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz). Please respecify!\n\n";
-	   }
+       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz). Please respecify!\n\n";
     }
 
     my $strain_index;
 	%strains = detect_strains($vcf_file);
 
-	if ($list_strains){
-	    warn "\nAvailable genomes to choose from are:\n";
-	    warn "="x37,"\n";
-	    foreach my $strain(keys %strains){
-	       print "$strain\n";
-	    }
-	    warn "="x37,"\n";
-	    warn "\nPlease choose a strain using '--strain NAME' to continue.\n\n";
-	    exit;
-	}
-
-
-    ### GENOME FOLDER
+	### GENOME FOLDER
     
     unless ($genome_folder){
 	   warn "Reference genome folder was not specified! Please use --reference_genome </genome/folder/>\n";
@@ -836,9 +818,6 @@ VERSION
     }
     chdir $parent_dir or die "Failed to move back to parent directory $parent_dir\n\n";
 
-    ### N-masking mode of action
-    $nmasking = 1; # This is the default
-    
     unless (defined $genome_build){
     	$genome_build = 'GRCm38';
     }
@@ -853,41 +832,20 @@ sub print_helpfile{
 
   SYNOPSIS:
 
-SNPsplit_genome_preparation is designed to read in a variant call files from the Mouse Genomes Project (e.g. this latest
-file: 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz') and generate new genome versions where the strain SNPs are either incorporated
-into the new genome (full sequence) or masked by the ambiguity nucleo-base 'N' (N-masking).
+reStraining is designed to read in a variant call file from the Mouse Genomes Project (e.g. this latest
+file: 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz') and generate a new multi-strain genome version where all high-confidence
+SNPs in any of the deeply sequenced straind (currently 35) are masked by the ambiguity nucleobase 'N' (N-masking).
 
-SNPsplit_genome_preparation may be run in two different modes:
-
-Single strain mode:
-
-   1) The VCF file is read and filtered for high-confidence SNPs in the strain specified with --strain <name>
-   2) The reference genome (given with --reference_genome <genome>) is read into memory, and the filtered high-
-      confidence SNP positions are incorporated either as N-masking (default) or full sequence (option --full_sequence)
-
-Dual strain mode:
-
-   1) The VCF file is read and filtered for high-confidence SNPs in the strain specified with --strain <name>
-   2) The reference genome (given with --reference_genome <genome>) is read into memory, and the filtered high-
-      confidence SNP positions are incorporated as full sequence and optionally as N-masking
-   3) The VCF file is read one more time and filtered for high-confidence SNPs in strain 2 specified with --strain2 <name>
-   4) The filtered high-confidence SNP positions of strain 2 are incorporated as full sequence and optionally as N-masking
-   5) The SNP information of strain and strain 2 relative to the reference genome build are compared, and a new Ref/SNP
-      annotation is constructed whereby the new Ref/SNP information will be Strain/Strain2 (and no longer the standard
-      reference genome strain Black6 (C57BL/6J))
-   6) The full genome sequence given with --strain <name> is read into memory, and the high-confidence SNP positions between
-      Strain and Strain2 are incorporated as full sequence and optionally as N-masking
 
 The resulting .fa files are ready to be indexed with your favourite aligner. Proved and tested aligners include Bowtie2,
-Tophat, STAR, Hisat2, HiCUP and Bismark. Please note that STAR and Hisat2 may require you to disable soft-clipping, please
-refer to the SNPsplit manual for more details
+STAR, HISAT2 and Bismark. Please note that STAR and HISAT2 may require you to disable soft-clipping.
 
-Both the SNP filtering as well as the genome preparation write out little report files for record keeping.
-Please note that the SNPsplit genome preparation writes out files and creates new folders for the SNPs and new genomes into
-the current working directory, so move there before invoking SNPsplit_genome_preparation.
+For more information on the reStraining genome preparation process, please refer to the User Guide at:
+https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#running-restraining
 
 
-  USAGE:    SNPsplit_genome_preparation  [options] --vcf_file <file> --reference_genome /path/to/genome/ --strain <strain_name>
+
+  USAGE:    reStraining --vcf_file <file> --reference_genome /path/to/genome/
 
 
 --vcf_file <file>             Mandatory file specifying SNP information for mouse strains from the Mouse Genomes Project
@@ -895,66 +853,28 @@ the current working directory, so move there before invoking SNPsplit_genome_pre
                               called 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz'. Please note that future versions
                               of this file or entirely different VCF files might not work out-of-the-box but may require some
                               tweaking. SNP calls are read from the VCF files, and high confidence SNPs are written into
-                              a folder in the current working directory called SNPs_<strain_name>/chr<chromosome>.txt,
+                              a folder in the current working directory called SNPs_directory/chr<chromosome>.txt,
                               in the following format:
 
-                                          SNP-ID     Chromosome  Position    Strand   Ref/SNP
-                              example:   33941939        9       68878541       1       T/G
+                              Chromosome  Position   REF   ALT   [0 or 1 for each strain]
 
+                              Where 0 means REF base, and 1 means ALT base.
 
---strain <strain_name>        The strain you would like to use as SNP (ALT) genome. Mandatory. For an overview of strain names
-                              just run SNPsplit_genome_preparation selecting '--list_strains'.
-
---list_strains                Displays a list of strain names present in the VCF file for use with '--strain <strain_name>'.
-
---dual_hybrid                 Optional. The resulting genome will no longer relate to the original reference specified with '--reference_genome'.
-                              Instead the new Reference (Ref) is defined by '--strain <strain_name>' and the new SNP genome
-                              is defined by '--strain2 <strain_name>'. '--dual_hybrid' automatically sets '--full_sequence'.
-
-                              This will invoke a multi-step process:
-                                 1) Read/filter SNPs for first strain (specified with '--strain <strain_name>')
-                                 2) Write full SNP incorporated (and optionally N-masked) genome sequence for first strain
-                                 3) Read/filter SNPs for second strain (specified with '--strain2 <strain_name>')
-                                 4) Write full SNP incorporated (and optionally N-masked) genome sequence for second strain
-                                 5) Generate new Ref/Alt SNP annotations for Strain1/Strain2
-                                 6) Set first strain as new reference genome and construct full SNP incorporated (and optionally 
-                                    N-masked) genome sequences for Strain1/Strain2
-                                                            
-
---strain2 <strain_name>       Optional for constructing dual hybrid genomes (see '--dual_hybrid' for more information). For an
-                              overview of strain names just run SNPsplit_genome_preparation selecting '--list_strains'.
 
 --reference_genome            The path to the reference genome, typically the strain 'Black6' (C57BL/6J), e.g.
                               '--reference_genome /bi/scratch/Genomes/Mouse/GRCm38/'. Expects one or more FastA files in this folder
-                              (file extension: .fa or .fasta).
+                              (file extension: .fa or .fasta). 
+                              
+                              The mouse genome files can be downlaoded from Ensembl via this command:
+                              wget ftp://ftp.ensembl.org/pub/release-97/fasta/mus_musculus/dna/*dna.chromosome.*
 
---skip_filtering              This option skips reading and filtering the VCF file. This assumes that a folder named
-                              'SNPs_<Strain_Name>' exists in the working directory, and that text files with SNP information
-                              are contained therein in the following format:
-
-                                          SNP-ID     Chromosome  Position    Strand   Ref/SNP
-                              example:   33941939        9       68878541       1       T/G
-
---nmasking                    Write out a genome version for the strain specified where Ref bases are replaced with 'N'. In the
-                              Ref/SNP example T/G the N-masked genome would now carry an N instead of the T. The N-masked genome
-                              is written to a folder called  '<strain_name>_N-masked/'. Default: ON.
-
---full_sequence               Write out a genome version for the strain specified where Ref bases are replaced with the SNP base.
-                              In the Ref/SNP example T/G the full sequence genome would now carry a G instead of the T. The full
-                              sequence genome is written out to folder called '<strain_name>_full_sequence/'. May be set in
-                              addition to '--nmasking'. Default: OFF. 
-
---no_nmasking                 Disable N-masking if it is not desirable. Will automatically set '--full_sequence' instead.
-
---genome_build [name]         Name of the mouse genome build, e.g. GRCm38. Will be incorporated into some of the output files.
-                              Defaults to 'GRCm38'.
 
 --help                        Displays this help information and exits.
 
 --version                     Displays version information and exits.
 
 
-                                                             Last modified: 20 05 2019
+                                                             Last modified: 15 08 2019
 
 EOF
     ;
