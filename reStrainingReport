@@ -558,11 +558,11 @@ sub process_commandline{
 	if ($version){
 		print << "VERSION";
 
-                              reStrainingOrder HTML Report Module
-                                    version: $report_version
-
-                     Copyright 2018-19 Felix Krueger, Babraham Bioinformatics
-                            https://github.com/FelixKrueger/Bismark
+                            reStrainingOrder HTML Report Module
+                                     Version: $report_version
+                              Copyright 2018-19 Felix Krueger
+                                  Babraham Bioinformatics
+                      https://github.com/FelixKrueger/reStrainingOrder
 	
 VERSION
 		exit;
