@@ -63,11 +63,18 @@ This is a one-off process.
 
 `reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz (FTP links are not rendered nicely in Github markdown)) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes four hours on our server and requires some 6GB of memory.
 
-Here is a sample command for this step:
+If you don't have the mouse genome files already, you can download them from Ensembl, e.g. with a command like this:
+
+```
+wget ftp://ftp.ensembl.org/pub/release-97/fasta/mus_musculus/dna/*dna.chromosome.*
+```
+
+Here is a sample command for the genome preparation step:
 
 ```
 reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
 ```
+
 
 This command:
  * creates a folder for the new N-masked genome
