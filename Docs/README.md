@@ -208,22 +208,64 @@ This step carries out the following tasks:
 
 - read and store matrix of high confidence SNP positions on chromosome 1 (`MGPv5_SNP_matrix_chr1.txt.gz`)
 
-- read BAM file, identify reads overlapping genomic N-masked positions, and store bases at N-masked positions (`REF`/`ALT`/`OTHER`). This step discriminates between standard genomic or bisulfite converted reads (C/T positions cannot be used under certain conditions, see above)
+- read BAM file, identify reads overlapping genomic N-masked positions, and store frequency of detected bases at N-masked positions (`REF`/`ALT`/`OTHER`). This step discriminates between standard genomic or bisulfite converted reads (C/T positions cannot be used under certain conditions, see above)
 
 Once the BAM file has finished processing, `reStrainingOrder` calculates the following statistics:
   * Pure strain compatibility scores
   * All pairwise hybrid combination compatibility scores
   * Allele-ratios for each hybrid combination
 
-It creates a number of output files:
+A **sample command** could look like this:
 
-A sample command could look like this:
-`reStrainingOrder --snp MGPv5_SNP_matrix_chr1.txt.gz Spretus_10M_simulated_bowtie2.bam`
+`reStrainingOrder --snp MGPv5_SNP_matrix_chr1.txt.gz Spretus_10M_bowtie2.bam`
 
 #### Output: 
 
-General run statistics
-Pure strain compatibility scores
+`reStrainingOrder` generates a number of output files:
+
+
+_Spretus_10M_bowtie2.reStrainingOrder_report.txt_
+
+This file contains some general run statistics, e.g. number of N-masked SNPs covered etc.
+
+
+_Spretus_10M_bowtie2.reStrainingOrder.strain_scores.txt_
+
+This tab-delimited text file contains the compatibility scores for potential single (pure) strains, and is in the format:  
+
+```
+Strain  Positions covered       Agreeing GT     Disagreeing GT  agreement
+```
+
+
+_Spretus_10M_bowtie2.reStrainingOrder.hybrid_scores.txt_
+
+This tab-delimited text file contains the compatibility scores for potential single (pure) strains, and is in the format:  
+
+```
+Potential Hybrid        Agreeing        Disagreeing     Percentage agreement    Strain1 Index   Strain2 Index
+```
+
+_Spretus_10M_bowtie2.reStrainingOrder.hybrid_ratios.txt_
+
+This tab-delimited text file contains the compatibility scores for potential single (pure) strains, and is in the format: 
+
+```
+Strain1 Strain1 Count   Strain1 Percentage     Strain2 Strain2 Count   Strain2 Percentage
+```
+
+
+_Spretus_10M_bowtie2.reStrainingOrder.summary_stats.txt_
+
+
+
+
+
+_Spretus_10M_bowtie2.reStrainingOrder.summary_stats.html_
+
+
+
+
 Hybrid strain compatibility scores
 Hybrid allele-ratios
 
@@ -234,22 +276,7 @@ HTML report
   
 **2)** The reference genome (given with `--reference_genome <genome>`) is read into memory, and the filtered high-confidence SNP positions are incorporated either as N-masking (default).
   
-#### Output: 
 
-General run statistics
-Pure strain compatibility scores
-Hybrid strain compatibility scores
-Hybrid allele-ratios
-
-HTML report
-
-
-Spretus_10M_simulated_bowtie2.reStrainingOrder.hybrid_ratios.txt
-Spretus_10M_simulated_bowtie2.reStrainingOrder.hybrid_scores.txt
-Spretus_10M_simulated_bowtie2.reStrainingOrder_report.txt
-Spretus_10M_simulated_bowtie2.reStrainingOrder.strain_scores.txt
-Spretus_10M_simulated_bowtie2.reStrainingOrder.summary_stats.html
-Spretus_10M_simulated_bowtie2.reStrainingOrder.summary_stats.txt
 
     
 # Credits
