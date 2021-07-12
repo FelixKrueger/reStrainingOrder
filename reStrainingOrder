@@ -7,7 +7,7 @@ use lib "$RealBin/../lib";
 use Cwd;
 
 
-## This program is Copyright (C) 2018-19, Felix Krueger (felix.krueger@babraham.ac.uk)
+## This program is Copyright (C) 2018-21, Felix Krueger (felix.krueger@babraham.ac.uk)
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ use Cwd;
 my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.1.0';
+my $pipeline_version = '0.2.0';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();

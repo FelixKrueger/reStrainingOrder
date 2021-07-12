@@ -27,7 +27,7 @@ use Cwd;
 ### it will work with any other supplied VCF file. A new version of the SNP file is supposed to be released in the first half of 2019
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.1.0dev';
+my $pipeline_version = '0.2.0';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build) = process_commandline ();
