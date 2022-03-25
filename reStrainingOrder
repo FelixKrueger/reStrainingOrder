@@ -5,9 +5,10 @@ use Getopt::Long;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
 use Cwd;
+$|++;
 
 
-## This program is Copyright (C) 2018-21, Felix Krueger (felix.krueger@babraham.ac.uk)
+## This program is Copyright (C) 2018-22, Felix Krueger (fkrueger@altoslabs.com)
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -25,7 +26,7 @@ use Cwd;
 my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.2.0';
+my $pipeline_version = '0.2.0dev';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
@@ -144,43 +145,49 @@ while (@ARGV){
 		foreach my $index (0..$#strains){
 			foreach my $index2 ( ($index+1)..$#strains){
 				++$combo;
-				print "Index 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n";
+				warn "\n>>New potential hybrid<<:\n\nIndex 1: $index\tIndex 2: $index2\tCOMBO: $combo\t$strains[$index]\t$strains[$index2]\n";
 				
+				# Both steps combined!
 				calculate_pairwise_comparisons_and_hybrid_strain_ratios($combo,$index,$index2);
 				
 				# STEP 3: Calculate hybrid strain ratios
-				# calculate_hybrid_strain_ratios($index,$index2);	
+				# calculate_hybrid_strain_ratios($index,$index2);# no longer used
 				# print_hybrid_strain_report();
-	
-				#last if ($combo == 5);
+				# last if ($combo == 5);
 			}
-			#last if ($combo == 5);
+			# last if ($combo == 5);
 		}
 		
-		
+		# Printing results
 		print PAIRWISE "Potential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
-		warn "Strain combination #\tPotential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
+		# warn "Strain combination #\tPotential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
 		# Printing the table
 		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
-			warn "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}%\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";
+			# warn "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}%\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";
 			print PAIRWISE "$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";	
 		}
 		close PAIRWISE or warn $!;
-		
+		warn "Finished printing pairwise combinationss\n\n";
+
+
 		# Now kicking off the allelic ratio calculation
-		print RATIOS "Strain1\tStrain1 Count\tStrain1 Perncentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
+		print RATIOS "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
+		# warn         "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		my $processed_count = 0;
 		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
 			# last if ($processed_count == 7);
 			++$processed_count;	
 			# warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
 			# calculate_hybrid_strain_ratios( $pairwise{$combo}->{strain1_index} , $pairwise{$combo}->{strain2_index} );
+			print RATIOS "$pairwise{$combo}->{strain1_identity}\t$pairwise{$combo}->{strain1_count}\t$pairwise{$combo}->{strain1_percentage}\t$pairwise{$combo}->{strain2_identity}\t$pairwise{$combo}->{strain2_count}\t$pairwise{$combo}->{strain2_percentage}\n";	
 		}
 		close RATIOS or warn "Had trouble closing RATIOS filehandle: $!";
+		warn "Finished printing allele-ratio combinationss\n\n";	
+
 	}
 
-	#warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
-    #w#arn "Finished allele-tagging for file <<< '$file' >>> \n\n";
+	# warn "strain1: $strains[$strain1_index]\nstrain2: $strains[$strain2_index]\n\n"; sleep(1);
+    # warn "Finished allele-tagging for file <<< '$file' >>> \n\n";
 
     # Finally, writing all stats into a single summary file
     collate_summary($outfile,$pairwise_hybrid_file,$hybrid_scores_file,$summary_stats_file);
@@ -196,7 +203,7 @@ while (@ARGV){
     # Calling reStrainingReport now to generate an HTML report
     system ("$RealBin/reStrainingReport");
 
-   	# warn "reStrainingOrder run complete...\n\n";
+   	warn "reStrainingOrder run complete...\n\n";
 }
 
 ###
@@ -1316,12 +1323,12 @@ sub read_snps{
 		$snps{$chr}->{$pos}->{snp} = $snp;
 		@{$snps{$chr}->{$pos}->{calls}} = @calls;
 		# print "@calls\n";
-		#unless (exists $counting{$strain}){
+		# unless (exists $counting{$strain}){
 		#	$counting{$strain} = 0;
-		#}
+		# }
 
-		#$strain_tallies{$strain}->{$chr}->{$pos}->{yes} = 0;
-		#$strain_tallies{$strain}->{$chr}->{$pos}->{no} = 0;
+		# $strain_tallies{$strain}->{$chr}->{$pos}->{yes} = 0;
+		# $strain_tallies{$strain}->{$chr}->{$pos}->{no} = 0;
 		
     }
 
@@ -1616,7 +1623,7 @@ sub calculate_single_strain_tallies{
 	foreach my $chr(keys %snps){
 		foreach my $pos(keys %{$snps{$chr}} ){
 
-			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
 			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
 				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
 				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
@@ -1665,7 +1672,7 @@ sub calculate_single_strain_tallies{
 						}
 					}
 					else{
-						die "This should never happen! line 1623\n";						
+						die "This should never happen!";						
 					}
 					# sleep(1);
 				}
@@ -1762,7 +1769,7 @@ sub calculate_pairwise_comparisons{
 		}	
 	
 	}
-	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{0}->{name} hybrid strain canditate stats\n=====================================================\n";
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{0}->{name} hybrid strain candidate stats\n=====================================================\n";
 	warn "SNP positions were covered:\t\t$processed\n";	
 	warn "Positions were not covered:\t\t$not_covered\n\n";
 	
@@ -1795,6 +1802,7 @@ sub allele_ratios{
 		# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
 		# sleep(1);
 		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+		
 		# The position is only interesting if the 2 strains have a different genotype here					
 		if ( $snps{$chr}->{$pos}->{calls}[$strain1_index] ne $snps{$chr}->{$pos}->{calls}[$strain2_index] ){
 
@@ -1802,8 +1810,8 @@ sub allele_ratios{
 
 			# strain 1 looks like the reference
 			if ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0){
-				#warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
-				#warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
+				# warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
+				# warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
 				
 				if (defined $snps{$chr}->{$pos}->{REF}){
 					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
@@ -1818,20 +1826,20 @@ sub allele_ratios{
 				# warn "Strain 1 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
 
 				if (defined $snps{$chr}->{$pos}->{REF}){
-					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
+					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{REF};
 				}
 				if (defined $snps{$chr}->{$pos}->{ALT}){
-					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
+					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{ALT};
 				}
 
 			}
 			else{
 				die "Either strain 1 or strain 2 should look like the reference!\n";
 			}
-
 		}
 		else{
 			# position is not informative
+			# warn "Boring, the two strains have the same genotype at this position!\n";
 			++$not_informative;
 		}
 			
@@ -1914,7 +1922,7 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	my ($combo,$strain1_index,$strain2_index) = @_;
 	# currently testing this with B6 CAST
 	#my ($strain1_index,$strain2_index) = (10,15); 
-	
+		
 	### Hybrid Strain information
 	my $processed = 0;
 	my $not_covered = 0;
@@ -1941,22 +1949,26 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	warn "Calculating hybrid strain agreement ratio for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n";
 	warn "Calculating strain ratios for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
 	foreach my $chr(keys %snps){
+		# warn "Processing positions of chromosome >>$chr<<\n";
 		foreach my $pos(keys %{$snps{$chr}} ){
-			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
+
+
+			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{ref}\t$snps{$chr}->{$pos}->{snp}\n";
+			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n";sleep(1);
 			
 			# Calculate hybrid agreement
 			($processed,$not_covered,$informative,$not_informative,$yes,$no) =
 			 	pairwise_comparison ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no);			
 			# Calculate allele ratios 
-			#warn "Passing on: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n";
+			# warn "Passing on: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n";
 			($processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios) =
 				allele_ratios($chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios,%hybrid_identity);
-			#warn "Getting back: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n"; sleep(1);
+			# warn "Getting back: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n"; sleep(1);
 			
 		}	
-	
+		# warn "Reached end of chromosome >>$chr<<\n"; # As we are only storing chromosome 1, there should never be another chromosome
 	}
-	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name} hybrid strain canditate stats\n=====================================================\n";
+	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name} hybrid strain candidate stats\n=====================================================\n";
 	warn "SNP positions were covered:\t\t$processed\n";	
 	warn "Positions were not covered:\t\t$not_covered\n\n";
 	
@@ -1978,7 +1990,7 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	$pairwise{$combo}->{strain1_index} = $strain1_index;
 	$pairwise{$combo}->{strain2_index} = $strain2_index;
 
-	warn "$hybrid_identity{0}->{name}/$hybrid_identity{0}->{name} hybrid strain stats\n=====================================================\n";
+	warn "$hybrid_identity{0}->{name}/$hybrid_identity{1}->{name} hybrid strain stats\n=====================================================\n";
 	warn "SNP positions were covered:\t\t$processed\n";	
 	warn "Positions were not covered:\t\t$not_covered\n";
 	warn "SNP positions were informative:\t\t$informative\n";	
@@ -2007,7 +2019,17 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	warn "Strain $hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count} ($percent_strain1%)\n";
 	warn "Strain $hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count} ($percent_strain2%)\n";
 	
-	print RATIOS "$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
+	$pairwise{$combo}->{strain1_identity} = $hybrid_identity{0}->{name};
+	$pairwise{$combo}->{strain2_identity} = $hybrid_identity{1}->{name};
+
+	$pairwise{$combo}->{strain1_count} = $hybrid_identity{0}->{count};
+	$pairwise{$combo}->{strain2_count} = $hybrid_identity{1}->{count};
+
+	$pairwise{$combo}->{strain1_percentage} = $percent_strain1;
+	$pairwise{$combo}->{strain2_percentage} = $percent_strain2;
+
+	# warn "OLD:\n$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
+	# print RATIOS "$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
 
 }
 
@@ -2016,7 +2038,7 @@ sub calculate_hybrid_strain_ratios{
 	my ($strain1_index,$strain2_index) = @_;
 	# currently testing this with B6 CAST
 	# my ($strain1_index,$strain2_index) = (10,15); 
-	
+	die "Shouldn't be used anymore";
 	my $processed = 0;
 	my $not_covered = 0;
 	my $informative = 0;
