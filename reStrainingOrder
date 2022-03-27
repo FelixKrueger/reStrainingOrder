@@ -26,7 +26,7 @@ $|++;
 my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.2.0dev';
+my $pipeline_version = '0.3.0';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
@@ -2496,7 +2496,8 @@ sub print_helpfile{
 
                            Chromosome  Position   REF   ALT   [0 or 1 for each strain]
 
-                           Where 0 means REF base, and 1 means ALT base.
+                           Where 0 means REF base, and 1 means ALT base. Edit 23 March 2022: A matrix file generated with the 
+	                       v7 index file (see 'reStraining --help') is also acceptable.
 
     
     -o/--outdir <dir>      Write all output files into this directory. By default the output files will be written into
@@ -2519,7 +2520,7 @@ sub print_helpfile{
     --version              Displays version information and exits.
 
 
-                                   Script last modified: 15 August 2019
+                                   Script last modified: 21 March 2022
 
 
 EOF

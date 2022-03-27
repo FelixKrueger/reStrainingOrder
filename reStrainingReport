@@ -20,7 +20,7 @@ use lib "$RealBin/../lib";
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-my $report_version = 'v0.2.0dev';
+my $report_version = 'v0.3.0';
 my (@reStrainingOrder_summary_reports);
 
 my ($output_dir,$verbose,$manual_output_file,$candidates) = process_commandline();

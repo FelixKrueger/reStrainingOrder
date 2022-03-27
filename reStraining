@@ -31,7 +31,7 @@ use Cwd;
 # mgp_REL2005_snps_indels.vcf.gz from May 2020
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.2.0dev';
+my $pipeline_version = '0.3.0';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7) = process_commandline ();
