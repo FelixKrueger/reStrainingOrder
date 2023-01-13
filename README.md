@@ -29,15 +29,10 @@ reStrainingOrder requires the following tools installed and ideally available in
 ## Documentation
 The reStrainingOrder documentation can be found here: [reStrainingOrder User Guide](./Docs/README.md)
 
-
-## Links
-
-This project was started as part of the 2018 Cambridge area bioinformatics hackathon (https://www.cambiohack.uk/).
-
 ## Licences
 
 reStrainingOrder itself is free software, `reStrainingReport` produces HTML graphs powered by [Plot.ly](https://plot.ly/javascript/) which are also free to use and look at!
 
 ## Credits
-reStrainingOrder was written by Felix Krueger, part of [Babraham Bioinformatics](https://www.bioinformatics.babraham.ac.uk), now part of Altos Bioinformatics.
+This project was started as part of the 2018 Cambridge area bioinformatics hackathon; reStrainingOrder was written by Felix Krueger, part of [Babraham Bioinformatics](https://www.bioinformatics.babraham.ac.uk), now part of Altos Bioinformatics.
 <p align="center"> <img title="Babraham Bioinformatics" id="logo_img" src="Docs/Images/bioinformatics_logo.png"></p>
