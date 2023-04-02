@@ -448,7 +448,7 @@ sub filter_relevant_SNP_calls_from_VCF{
             my $pos_fails = 0;
             my $strain_call = 0; # this is a boolean flag for SNP present yes/no
             
-	if (!$i){
+	if (!$fi){
 		warn "$1 was not extracted properly, please fix!\n";
 		sleep (1);
 	}
