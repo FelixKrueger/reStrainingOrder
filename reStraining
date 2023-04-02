@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use Cwd;
 
-## This program is Copyright (C) 2018-22, Felix Krueger (felix.krueger@babraham.ac.uk)
+## This program is Copyright (C) 2018-23, Felix Krueger (fkrueger@altoslabs.com)
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -27,11 +27,13 @@ use Cwd;
 ### it will work with any other supplied VCF file. A new version of the SNP file is supposed to be released in the first half of 2019
 
 
+# Updating 02 April 2023 to change over to GRCm39 and v8 annotations
 # Modifying 22 March 2022 - to accept the new release version 
 # mgp_REL2005_snps_indels.vcf.gz from May 2020
 
+
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.3.0';
+my $pipeline_version = '0.3.0dev';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7) = process_commandline ();
@@ -446,6 +448,11 @@ sub filter_relevant_SNP_calls_from_VCF{
             my $pos_fails = 0;
             my $strain_call = 0; # this is a boolean flag for SNP present yes/no
             
+	if (!$i){
+		warn "$1 was not extracted properly, please fix!\n";
+		sleep (1);
+	}
+	
             # Looking at the Filter tag first
             if ($fi eq 1){
             	# warn "FI was high confidence ($fi)\n";
