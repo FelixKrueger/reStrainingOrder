@@ -50,7 +50,7 @@ While the genome preparation is not very resource hungry, the alignment and scor
 
 #### Feedback
 
-We would like to hear your comments or suggestions! Please e-mail [me here](mailto:felix.krueger@babraham.ac.uk)!
+We would like to hear your comments or suggestions! Please e-mail [me here](mailto:fkrueger@altoslabs.com)!
 
 
 # The reStrainingOrder workflow in more detail
@@ -61,18 +61,18 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 This is a one-off process.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from this location: ftp://ftp-mouse.sanger.ac.uk/current_snps/mgp.v5.merged.snps_all.dbSNP142.vcf.gz (FTP links are not rendered nicely in Github markdown)) and generate a new genome version where all positions found as a SNP in any of the strains (currently 35 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes four hours on our server and requires some 6GB of memory.
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from The  Genomes Project](https://www.mousegenomes.org/). It now assumes the GRCm39 mouse genome build by default, and uses the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)); the previous version v5 (`mgp.v5.merged.snps_all.dbSNP142.vcf.gz`) is no longer supported. `reStraining` generates a new genome version where all positions found as a SNP in any of the strains (currently >50 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes a few hours and requires some 6GB of memory.
 
 If you don't have the mouse genome files already, you can download them from Ensembl, e.g. with a command like this:
 
 ```
-wget ftp://ftp.ensembl.org/pub/release-97/fasta/mus_musculus/dna/*dna.chromosome.*
+wget ftp://ftp.ensembl.org/pub/release-109/fasta/mus_musculus/dna/*dna.chromosome.*
 ```
 
 Here is a sample command for the genome preparation step:
 
 ```
-reStraining --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz --reference /bi/scratch/Genomes/Mouse/GRCm38/
+reStraining --vcf mgp_REL2021_snps.vcf.gz --reference Genomes/Mouse/GRCm39/
 ```
 
 
