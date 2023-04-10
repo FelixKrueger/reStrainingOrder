@@ -22,18 +22,18 @@ use Cwd;
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-### This script filters the latest VCF file for various SNPs versus the GRCm38 mouse genome build and writes high confidence SNPs into a folder called 'SNPs_Sanger';
-### It has been tested with the latest version of the SNP file 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz' at the time of writing (11 May 2016). I can't guarantee that
-### it will work with any other supplied VCF file. A new version of the SNP file is supposed to be released in the first half of 2019
+### This script filters the latest VCF file for various SNPs versus the GRCm39
+### mouse genome build and writes high confidence SNPs into a folder called 'SNPs_Sanger';
+### it then creates a new genome called MGP_strains_N-masked.
 
+### It has been tested with the latest version of the SNP file 'mgp_REL2021_snps.vcf.gz'
+### at the time of writing (02 April 2023). I can't guarantee that it will work with any other VCF file
 
 # Updating 02 April 2023 to change over to GRCm39 and v8 annotations
-# Modifying 22 March 2022 - to accept the new release version 
-# mgp_REL2005_snps_indels.vcf.gz from May 2020
 
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.3.0dev';
+my $pipeline_version = '0.4.0dev';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7) = process_commandline ();
@@ -298,7 +298,7 @@ sub filter_relevant_SNP_calls_from_VCF{
         $matrix_file = "MGPv7_SNP_matrix_chr1.txt.gz";
     } 
     else{
-        $matrix_file = "MGPv5_SNP_matrix_chr1.txt.gz";
+        $matrix_file = "MGPv8_SNP_matrix_chr1.txt.gz";
     }
 
     ### Printing the SNP matrix to this file, which will be important for the reStrainingOrder process
@@ -322,6 +322,10 @@ sub filter_relevant_SNP_calls_from_VCF{
     my $positions_skipped = 0;
     my %fhs;
     
+    my $format_index;    # required to get extract entries from FORMAT field
+	my $info_index;      # required to look at INFO field, e.g. for INDELs
+	my $gt_index;        # required to get GENOTYPE
+	my $fi_index;        # required to get FILTER value
 	
     my $dir = "SNPs_directory";
     unless (-d $dir){
@@ -341,11 +345,44 @@ sub filter_relevant_SNP_calls_from_VCF{
 
     while (<IN>){
     	$_ =~ s/(\r|\n)//g; # removing end of line characters
-
+        
         next if ($_ =~ /^\#\#/); # filters out header information lines
     	# warn "$_\n"; sleep(1);
         if ($_ =~ /^\#CHROM/){ # Table Header
-    	    #my ($name) = (split /\t/)[$strain_index];
+    	
+        	# my ($name) = (split /\t/)[$strain_index];
+			# warn "Analysing SNP fields for name >$name<\n";
+            # sleep(5);
+			my @format_fields = split /\t/;
+			my $field_index = 0;
+			foreach my $field (@format_fields){
+				# warn "$field_index\t$field\n";#
+				if ($field eq "FORMAT"){#
+					$format_index = $field_index;
+				}
+				if ($field eq "INFO"){#
+					$info_index = $field_index;
+				}
+				$field_index++;
+			}
+			
+			if (defined $format_index){
+				warn "Using FORMAT field index: $format_index\n";
+                # sleep(1);
+			}
+			else{
+				die "Failed to extract index of field 'FORMAT'. Hmmm...";
+			}
+
+			if (defined $info_index){
+				warn "Using INFO field index: $info_index\n";
+                # sleep(1);
+			}
+			else{
+				die "Failed to extract index of field 'INFO'. Hmmm...";
+			}
+
+            #my ($name) = (split /\t/)[$strain_index];
     	    #warn "Analysing SNP fields for name >$name<\n";
     	    next;	
     	}
@@ -367,7 +404,16 @@ sub filter_relevant_SNP_calls_from_VCF{
         
         # This is the format of the v7 VCF file:
         #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.RIII	BALB_cByJ	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_10SnJ	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	CE_J	CZECHII_EiJ	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	JF1_MsJ	KK_HiJ	LEWES_EiJ	LG_J	LP_J	MA_MyJ	MOLF_EiJ	NOD_ShiLtJ	NON_LtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PL_J	PWK_PhJ	QSi3	QSi5	RF_J	RIIIS_J	SEA_GnJ	SJL_J	SM_J	SPRET_EiJ-ST_bJ	SWR_J	WSB_EiJ	ZALENDE_EiJ
-        my ($chr,$pos,undef,$ref,$alt,undef,undef,$info,undef,@strains) = (split /\t/);
+        
+        # 10 04 2023: This is the format of the v8 VCF file ("mgp_REL2021_snps.vcf.gz"):
+        ### #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.RIII	BALB_cByJ	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH
+        ###	C3H_HeJ	C57BL_10J	C57BL_10SnJ	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	CE_J	CZECHII_EiJ	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	JF1_MsJ	KK_HiJ	LEWES_EiJ	LG_J
+        ### LP_J	MAMy_J	MOLF_EiJ	NOD_ShiLtJ	NON_LtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PL_J	PWK_PhJ	QSi3	QSi5	RF_J	RIIIS_J	SEA_GnJ	SJL_J	SM_J	SPRET_EiJ	ST_bJ	SWR_J	WSB_EiJ	ZALENDE_EiJ
+
+        my ($chr,$pos,undef,$ref,$alt,undef,undef,$info,$format,@strains) = (split /\t/);
+
+		#  warn "genotype: $gt\nfilter:   $fi\n";
+		#  warn "$fi\n"; sleep(1);
         unless (defined $last_chr){
             $last_chr = $chr; # only once
             warn "Processing first chromosome (chr $chr)\n";
@@ -424,12 +470,13 @@ sub filter_relevant_SNP_calls_from_VCF{
         
             # for v5: $strain is in the form: GT:GQ:DP:MQ0F:GP:PL:AN:MQ:DV:DP4:SP:SGB:PV4:FI
 	        # for v7: $strain is in the form: GT:PL:DP:ADF:ADR:AD:GQ:FI
-            
+            # for v8: $strain is in the form: GT:PL:DP:AD:GQ:FI   # Now te default (as of 10 April 2023)
+
             if ($v7){ # the v7 version, currently experimental
  		        ($gt,$pl,$dp,$adf,$adr,$ad,$gq,$fi) = split/:/,$strains[$index];
     	    }
             else{ # mgp v5, default
-                ($gt,$gq,$dp,$mq0f,$gp,$pl,$an,$mq,$dv,$dp4,$sp,$sgb,$pv4,$fi) = split/:/,$strains[$index];
+                ($gt,$pl,$dp,$ad,$gq,$fi) = split/:/,$strains[$index]; 
             }
 
             #warn "genotype: $gt\nfilter:   $fi\n";
@@ -448,10 +495,9 @@ sub filter_relevant_SNP_calls_from_VCF{
             my $pos_fails = 0;
             my $strain_call = 0; # this is a boolean flag for SNP present yes/no
             
-	if (!$fi){
-		warn "$1 was not extracted properly, please fix!\n";
-		sleep (1);
-	}
+            # if (!defined $fi){
+            #     warn "$1 was not extracted properly, please fix!\n";
+            # }
 	
             # Looking at the Filter tag first
             if ($fi eq 1){
@@ -819,7 +865,7 @@ sub process_commandline{
 	
                           reStrainingOrder - Genome Preparation
 			           version: $pipeline_version
-                             Copyright 2018-22, Felix Krueger
+                             Copyright 2018-23, Felix Krueger
                                  Altos Bioinformatics
                    https://github.com/FelixKrueger/reStrainingOrder
 
@@ -851,7 +897,7 @@ VERSION
 		}
     }
     else{
-       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: --vcf mgp.v5.merged.snps_all.dbSNP142.vcf.gz). Please respecify!\n\n";
+       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: --vcf mgp_REL2021_snps.vcf.gz). Please respecify!\n\n";
     }
 
     my $strain_index;
@@ -899,8 +945,8 @@ sub print_helpfile{
   SYNOPSIS:
 
 reStraining is designed to read in a variant call file from the Mouse Genomes Project (e.g. this latest
-file: 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz') and generate a new multi-strain genome version where all high-confidence
-SNPs in any of the deeply sequenced straind (currently 35) are masked by the ambiguity nucleobase 'N' (N-masking).
+file: 'mgp_REL2021_snps.vcf.gz') and generate a new multi-strain genome version where all high-confidence
+SNPs in any of the deeply sequenced straind (currently ~51) are masked by the ambiguity nucleobase 'N' (N-masking).
 
 
 The resulting .fa files are ready to be indexed with your favourite aligner. Proved and tested aligners include Bowtie2,
@@ -915,7 +961,7 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 
 
 --vcf_file <file>             Mandatory file specifying SNP information for mouse strains from the Mouse Genomes Project
-                              (http://www.sanger.ac.uk/science/data/mouse-genomes-project). The file used and approved is 
+                              (). The file used and approved is 
                               called 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz'. Please note that future versions
                               of this file or entirely different VCF files might not work out-of-the-box but may require some
                               tweaking. SNP calls are read from the VCF files, and high confidence SNPs are written into
@@ -926,18 +972,17 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 
                               Where 0 means REF base, and 1 means ALT base.
 
---v7_VCF                      This will use the file 'mgp_REL2005_snps_indels.vcf.gz' instead of the mgp.v5 file mentioned
-                              above. This file contains both SNP and INDEL information, but INDELs are skipped. The mgp.v5
-                              file is still listed as Current_SNPs, so the v7 file is still considered experimental. The v7
+--v7_VCF                      This will use the file 'mgp_REL2005_snps_indels.vcf.gz' for backward compativility.
+                              This file contains both SNP and INDEL information, but INDELs are skipped. The v7
                               file contains a number of additional strains, and was released in May2020. Get it here:
                               ftp://ftp-mouse.sanger.ac.uk/REL-2004-v7-SNPs_Indels/mgp_REL2005_snps_indels.vcf.gz
 
 --reference_genome            The path to the reference genome, typically the strain 'Black6' (C57BL/6J), e.g.
-                              '--reference_genome /bi/scratch/Genomes/Mouse/GRCm38/'. Expects one or more FastA files in this folder
+                              '--reference_genome Genomes/Mouse/GRCm39/'. Expects one or more FastA files in this folder
                               (file extension: .fa or .fasta). 
                               
                               The mouse genome files can be downlaoded from Ensembl via this command:
-                              wget ftp://ftp.ensembl.org/pub/release-97/fasta/mus_musculus/dna/*dna.chromosome.*
+                              wget ftp://ftp.ensembl.org/pub/release-109/fasta/mus_musculus/dna/*dna.chromosome.*
 
 
 --help                        Displays this help information and exits.
@@ -945,7 +990,7 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 --version                     Displays version information and exits.
 
 
-                                                             Last modified: 22 03 2022
+                                                             Last modified: 11 04 2023
 
 EOF
     ;
