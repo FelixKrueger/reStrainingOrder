@@ -871,7 +871,7 @@ sub process_commandline{
 
 VERSION
 		 ;
-   	exit;
+   	exit 1;
     }
 
     if (defined $vcf_file){
@@ -885,19 +885,19 @@ VERSION
 			$tmp_vcf_name =~ s/.*\///; # removing path information
 
 			if($tmp_vcf_name eq 'mgp_REL2005_snps_indels.vcf.gz') {
-				warn "Using v7 MGP file 'mgp_REL2005_snps_indels.vcf.gz'. This file can be obtained from:\n";
+				warn "Using v7 MGP file 'mgp_REL2005_snps_indels.vcf.gz'. This file used to be available from:\n";
 				warn "ftp://ftp-mouse.sanger.ac.uk/REL-2004-v7-SNPs_Indels/mgp_REL2005_snps_indels.vcf.gz\n\n";
 				warn "PLEASE NOTE:\n============\nThis file is currently not marked as Current_SNPs, so consider this approach experimental for the time being (as of 21 03 2022)\n\n";	
 				sleep(1);
 			}
 			else{
 				warn "Version 7 input file selected. Input VCF file '$vcf_file' doesn't appear to be file 'mgp_REL2005_snps_indels.vcf.gz'. If something goes wrong, I won't accept responsibility....!\n\n";
-				sleep(3);
+				sleep(1);
 			}
 		}
     }
     else{
-       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: --vcf mgp_REL2021_snps.vcf.gz). Please respecify!\n\n";
+       die "\nYou need to provide a VCF file detailing SNPs positions with '--vcf_file your.file' (e.g.: '--vcf mgp_REL2021_snps.vcf.gz'). Please respecify!\n\n";
     }
 
     my $strain_index;
@@ -906,7 +906,7 @@ VERSION
 	### GENOME FOLDER
     
     unless ($genome_folder){
-	   warn "Reference genome folder was not specified! Please use --reference_genome </genome/folder/>\n";
+	    warn "Reference genome folder was not specified! Please use --reference_genome </genome/folder/>\n";
     	# print_helpfile();
     	exit;
     }
@@ -926,12 +926,12 @@ VERSION
     	$genome_folder = $absolute_genome_folder;
     }
     else{
-	   die "Failed to move to genome folder > $genome_folder <: $!\n\nSNPsplit_genome_preparation --help for more details\n\n";
+	   die "Failed to move to genome folder > $genome_folder <: $!\n\n'reStraining --help' for more details\n\n";
     }
     chdir $parent_dir or die "Failed to move back to parent directory $parent_dir\n\n";
 
     unless (defined $genome_build){
-    	$genome_build = 'GRCm38';
+    	$genome_build = 'GRCm39';
     }
 
     return ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7_MGP_file);
@@ -948,7 +948,6 @@ reStraining is designed to read in a variant call file from the Mouse Genomes Pr
 file: 'mgp_REL2021_snps.vcf.gz') and generate a new multi-strain genome version where all high-confidence
 SNPs in any of the deeply sequenced straind (currently ~51) are masked by the ambiguity nucleobase 'N' (N-masking).
 
-
 The resulting .fa files are ready to be indexed with your favourite aligner. Proved and tested aligners include Bowtie2,
 STAR, HISAT2 and Bismark. Please note that STAR and HISAT2 may require you to disable soft-clipping.
 
@@ -961,10 +960,10 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 
 
 --vcf_file <file>             Mandatory file specifying SNP information for mouse strains from the Mouse Genomes Project
-                              (). The file used and approved is 
-                              called 'mgp.v5.merged.snps_all.dbSNP142.vcf.gz'. Please note that future versions
-                              of this file or entirely different VCF files might not work out-of-the-box but may require some
-                              tweaking. SNP calls are read from the VCF files, and high confidence SNPs are written into
+                              (https://www.mousegenomes.org/). The file used and approved for genome build GRCm39 is 
+                              called 'mgp_REL2021_snps.vcf.gz'. Please note that future versions of this file or entirely
+                              different VCF files might not work out-of-the-box but may require some tweaking.
+                              SNP calls are read from the VCF files, and high confidence SNPs are written into
                               a folder in the current working directory called SNPs_directory/chr<chromosome>.txt,
                               in the following format:
 
@@ -974,14 +973,14 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 
 --v7_VCF                      This will use the file 'mgp_REL2005_snps_indels.vcf.gz' for backward compativility.
                               This file contains both SNP and INDEL information, but INDELs are skipped. The v7
-                              file contains a number of additional strains, and was released in May2020. Get it here:
-                              ftp://ftp-mouse.sanger.ac.uk/REL-2004-v7-SNPs_Indels/mgp_REL2005_snps_indels.vcf.gz
+                              file contains a number of additional strains, and was released in May2020.
 
---reference_genome            The path to the reference genome, typically the strain 'Black6' (C57BL/6J), e.g.
-                              '--reference_genome Genomes/Mouse/GRCm39/'. Expects one or more FastA files in this folder
+--reference_genome <PATH>     The path to the reference genome, typically the strain 'Black6' (C57BL/6J). The mouse genomes
+                              project uses the Ensembl genome build GRCm39, and will likely fail in conjunction with genomes
+                              from NCBI or UCSF. reStraining expects one or more FastA files in this folder
                               (file extension: .fa or .fasta). 
                               
-                              The mouse genome files can be downlaoded from Ensembl via this command:
+                              The mouse genome files can be downloaded from Ensembl via this command:
                               wget ftp://ftp.ensembl.org/pub/release-109/fasta/mus_musculus/dna/*dna.chromosome.*
 
 
