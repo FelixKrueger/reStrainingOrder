@@ -33,7 +33,7 @@ use Cwd;
 
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.4.0dev';
+my $pipeline_version = '0.4.0';
 my $parent_dir = getcwd();
 my %strains;
 my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7) = process_commandline ();
