@@ -4,7 +4,7 @@
 
 # reStrainingOrder - Mouse Strain Identification
 
-## User Guide - v0.1.0
+## User Guide - v0.4.0
 
 This User Guide outlines how reStrainingOrder works and gives details for each step.
 
@@ -61,7 +61,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 This is a one-off process.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from The  Genomes Project](https://www.mousegenomes.org/). It now assumes the GRCm39 mouse genome build by default, and uses the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)); the previous version v5 (`mgp.v5.merged.snps_all.dbSNP142.vcf.gz`) is no longer supported. `reStraining` generates a new genome version where all positions found as a SNP in any of the strains (currently >50 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes a few hours and requires some 6GB of memory.
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from [The Mouse Genomes Project](https://www.mousegenomes.org/). It now assumes the GRCm39 mouse genome build by default, and uses the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)); the previous version v5 (`mgp.v5.merged.snps_all.dbSNP142.vcf.gz`) is no longer supported. `reStraining` generates a new genome version where all positions found as a SNP in any of the strains (currently >50 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes a few hours and requires some 6GB of memory.
 
 If you don't have the mouse genome files already, you can download them from Ensembl, e.g. with a command like this:
 
@@ -89,33 +89,33 @@ This folder (called `MGP_strains_N-masked`) and its FastA contents are vital for
 
 **Chromosome 1 matrix file**
 
-The genome preparation command writes out a matrix file for chromosome 1 only (called `MGPv5_SNP_matrix_chr1.txt.gz`), which is in the following format:
+The genome preparation command writes out a matrix file for chromosome 1 only (called `MGPv8_SNP_matrix_chr1.txt.gz`), which is in the following format:
 
 ```
-Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	AKR_J	A_J	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	KK_HiJ	LEWES_EiJ	LP_J	MOLF_EiJ	NOD_ShiLtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PWK_PhJ	RF_SEA_GnJ	SPRET_EiJ	ST_bJ	WSB_EiJ	ZALENDE_EiJ
-1	3000023	C	A	1	1	0	0	0	0	1	1	0	1	0	0	1	0	0	0	1	0	0	0	0	0	0	0
-1	3000126	G	T	1	1	0	0	0	1	1	1	0	1	1	1	1	1	1	0	1	1	0	0	1	1	0	1
-1	3000185	G	T	1	1	1	1	0	0	1	1	0	0	0	0	1	1	0	1	0	1	1	1	1	0	0	1
-1	3000234	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.RIII	BALB_cByJ	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_10SnJ	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	CE_J	CZECHII_EiJ	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	JF1_MsJ	KK_HiJ	LEWES_EiJ	LG_J	LP_J	MAMy_J	MOLF_EiJ	NOD_ShiLtJ	NON_LtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PL_J	PWK_PhJ	QSi3	QSi5	RF_J	RIIIS_J	SEA_GnJ	SJL_J	SM_J	SPRET_EiJ	ST_bJ	SWR_J	WSB_EiJ	ZALENDE_EiJ
+1	3050050	C	G	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0 0 0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0
+1	3050069	C	T	1	1	1	0	1	0	0	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0 1	1	0	0	0	0	1	1	0	1	1	0	0	0	1	0	1	1	0	0	0	1	0	0	1	1	0	1
+1	3050115	G	A	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0 0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0
+1	3050118	G	A	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	1	0	0	1	1 0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0
 ```
 A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that it contains the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process (reStrainingOrder, [see below](#step-III---scoring-snps) ). 
 
 The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome, but with 70M positions this would be challenging...!). This is the SNP filtering summary:
 
 ```
-SNP position summary for all MGP strains (based on mouse genome build GRCm38)
+SNP position summary for all MGP strains (based on mouse genome build GRCm39)
 ===========================================================================
 
-Positions read in total:	78,772,544
-Positions skipped because the REF/ALT bases were not well defined:	960,167
-Positions discarded as no strain had a high confidence call:	7,936,128
+Positions read in total:	6,449,162
+Positions skipped because the REF/ALT bases were not well defined:	84,827
+Positions discarded as no strain had a high confidence call:	698,557
 
-Positions printed to THE CHR1 MATRIX in total:	5,506,653
+Positions printed to THE MATRIX in total:	5,665,777
 ```
 
 **Please note:** that only positions that have a single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. Also, positions where the reference sequence did not have a DNA base or positions with no high confidence SNP call in any of the strains were skipped entirely. 
 
-In total, the chr1 matrix file contains ~5.5 million positions that were of high quality in one or more strains.
+In total, the chr1 matrix file contains ~5.6 million positions that were of high quality in one or more strains.
 
 **SNP folder**
 
@@ -212,7 +212,7 @@ The number of SNP positions that have been skipped because of this bisulfite amb
 
 This step carries out the following tasks:
 
-- read and store matrix of high confidence SNP positions on chromosome 1 (`MGPv5_SNP_matrix_chr1.txt.gz`)
+- read and store matrix of high confidence SNP positions on chromosome 1 (`MGPv8_SNP_matrix_chr1.txt.gz`)
 
 - read BAM file, identify reads overlapping genomic N-masked positions, and store frequency of detected bases at N-masked positions (`REF`/`ALT`/`OTHER`). This step discriminates between standard genomic or bisulfite converted reads (C/T positions cannot be used under certain conditions, see above)
 
@@ -223,7 +223,7 @@ Once the BAM file has finished processing, `reStrainingOrder` calculates the fol
 
 A **sample command** could look like this:
 
-`reStrainingOrder --snp MGPv5_SNP_matrix_chr1.txt.gz Spretus_10M_bowtie2.bam`
+`reStrainingOrder --snp MGPv8_SNP_matrix_chr1.txt.gz Spretus_10M_bowtie2.bam`
 
 ### Output: 
 
@@ -290,6 +290,6 @@ This file is generated by `reStrainingReport`. It is called automatically at the
 
     
 # Credits
-reStrainingOrder was written by Felix Krueger at the [Babraham Bioinformatics Group](http://www.bioinformatics.babraham.ac.uk/).
+reStrainingOrder was written by Felix Krueger at the [Babraham Bioinformatics Group](http://www.bioinformatics.babraham.ac.uk/), now maintained at [Altos Bioinformatics](https://altoslabs.com/).
 
 ![Babraham Bioinformatics](Images/bioinformatics_logo.png)
