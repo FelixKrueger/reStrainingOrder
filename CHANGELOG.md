@@ -1,5 +1,14 @@
 # reStrainingOrder Changelog
 
+## Changelog for version 0.4.0 [release on 12 April 2023]
+
+Updated documentation to reflect the changes made by swtiching over to the `GRCm39` mouse genome, as well as the v8 annotation files. The v5 and v7 versions are probably no longer available for download, but we have left the option `--v7` in there for backward compatibility for the time being.
+
+### reStraining
+
+- Updated the genome preparation to now work with the latest (v8) genome annotation file (mgp_REL2021_snps.vcf.gz) from the [Mouse Genomes Project](https://www.mousegenomes.org/). The mgp_v5 version for the now outdated GRCm38 genome are now no longer supported (since this is primarily a screening tool anyway...).
+
+
 ## Changelog for version 0.3.0 [release on 27 March 2022]
 
 ### reStraining

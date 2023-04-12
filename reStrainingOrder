@@ -8,7 +8,7 @@ use Cwd;
 $|++;
 
 
-## This program is Copyright (C) 2018-22, Felix Krueger (fkrueger@altoslabs.com)
+## This program is Copyright (C) 2018-23, Felix Krueger (fkrueger@altoslabs.com)
 
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ $|++;
 my $stopat = 10000000;
 
 ## Reading in a BAM or SAM file
-my $pipeline_version = '0.3.0';
+my $pipeline_version = '0.4.0';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
@@ -2322,8 +2322,8 @@ sub process_commandline{
     reStrainingOrder - Mouse Strain Classification
 
 	        Version: $pipeline_version
- 	  Copyright 2018-19, Felix Krueger
-             Babraham Bioinformatics
+ 	  Copyright 2018-23, Felix Krueger
+            Altos Bioinformatics
     https://github.com/FelixKrueger/reStrainingOrder
 
 
@@ -2341,7 +2341,7 @@ VERSION
 
 
     unless ($snp_file){
-		die "You need to provide a matrix file detailing SNPs on chromosome 1 with e.g. '--SNP_file MGPv5_SNP_matrix_chr1.txt.gz'. Please respecify!\n";
+		die "You need to provide a matrix file detailing SNPs on chromosome 1 with e.g. '--SNP_file MGPv8_SNP_matrix_chr1.txt.gz'. Please respecify!\n";
     }
 
     if ($no_sort){
@@ -2478,7 +2478,7 @@ sub print_helpfile{
 
 	reStrainingOrder is designed to read in alignment files in BAM format and determine the genetic origin of reads
 	that cover known SNP positions. For this to work the alignment step must have been carried out against a multi-
-	strain mouse genome that had all SNP positions replaced by Ns (N-masking), a process carried out by the 'reStraining'
+	strain mouse genome that had all SNP positions replaced by Ns (N-masking), in a process carried out by the 'reStraining'
 	genome preparation. A matrix of all relevant SNP positions on chromosome 1 also needs to be provided using the option
 	--snp_file.
 
@@ -2486,7 +2486,7 @@ sub print_helpfile{
     	https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md
 
 
-      USAGE:      reStrainingOrder  [options] --snp_file MGPv5_SNP_matrix_chr1.txt.gz [input file(s)]
+      USAGE:      reStrainingOrder  [options] --snp_file MGMGPv8_SNP_matrix_chr1.txt.gz [input file(s)]
 
 
     input file(s)          Mapping output file to the N-masked MGP genome in BAM format. 
@@ -2520,7 +2520,7 @@ sub print_helpfile{
     --version              Displays version information and exits.
 
 
-                                   Script last modified: 21 March 2022
+                                   Script last modified: 11 April 2023
 
 
 EOF

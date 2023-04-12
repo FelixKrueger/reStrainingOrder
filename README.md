@@ -5,7 +5,7 @@
 # reStrainingOrder - why do we need one?
 reStrainingOrder is intended as QC tool that attempts to identify the genotype of pure strain or hybrid mouse samples. It can be be used to check public data as well as provide useful insight into mouse strains commonly used in your own lab.
 
-To do this, reStrainingOrder harnesses single-nucleotide polymorphism (SNP) information collected by the Mouse Genomes Project (MGP, http://www.sanger.ac.uk/science/data/mouse-genomes-project), and constructs a fully N-masked genome similar to the approach of [SNPsplit](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md).
+To do this, reStrainingOrder harnesses single-nucleotide polymorphism (SNP) information collected by the [Mouse Genomes Project](https://www.mousegenomes.org/), and constructs a fully N-masked genome similar to the approach of [SNPsplit](http://felixkrueger.github.io/SNPsplit/). The project has been updated to work with the latest release of the Mouse Genomes Project, which means that it will now assume the GRCm39 mouse genome build by default, and use the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)).
 
 reStrainingOrder is intended to work with most common types of Illumina sequencing - including `RNA-seq`, `ChIP-seq`, `ATAC-seq` or any kind of `Bisulfite-seq`. Supported aligners include [`Bowtie2`](https://github.com/BenLangmead/bowtie2), [`HISAT2`](https://ccb.jhu.edu/software/hisat2/index.shtml), [`STAR`](https://github.com/alexdobin/STAR), and [`Bismark`](https://github.com/FelixKrueger/Bismark) (Oxford comma, anyone?).
 
@@ -29,15 +29,10 @@ reStrainingOrder requires the following tools installed and ideally available in
 ## Documentation
 The reStrainingOrder documentation can be found here: [reStrainingOrder User Guide](./Docs/README.md)
 
-
-## Links
-
-This project was started as part of the 2018 Cambridge area bioinformatics hackathon (https://www.cambiohack.uk/).
-
 ## Licences
 
 reStrainingOrder itself is free software, `reStrainingReport` produces HTML graphs powered by [Plot.ly](https://plot.ly/javascript/) which are also free to use and look at!
 
 ## Credits
-reStrainingOrder was written by Felix Krueger, part of the [Babraham Bioinformatics](https://www.bioinformatics.babraham.ac.uk) group.
+This project was started as part of the 2018 Cambridge area bioinformatics hackathon; reStrainingOrder was written by Felix Krueger, part of [Babraham Bioinformatics](https://www.bioinformatics.babraham.ac.uk), now part of Altos Bioinformatics.
 <p align="center"> <img title="Babraham Bioinformatics" id="logo_img" src="Docs/Images/bioinformatics_logo.png"></p>
