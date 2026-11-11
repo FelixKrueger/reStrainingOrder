@@ -424,7 +424,7 @@ sub filter_relevant_SNP_calls_from_VCF{
             $last_chr = $chr; 
         }
         # warn "$chr , $pos , $ref , $alt\n"; sleep(1);
-        unless ($chr eq '1'){
+        unless ($chr eq '1' or $chr eq 'chr1'){ # Ensembl or UCSC names, as for THE MATRIX below
             warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
             last;
         }
