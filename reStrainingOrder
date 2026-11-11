@@ -275,6 +275,8 @@ sub process_masked_BAM_file{
     my $contained_N_deletion = 0;
     my $multi_N_deletion = 0;
     my $unmapped = 0;
+    my $secondary_supplementary = 0;
+    my $malformed = 0;
 
     while (<IN>){
 
@@ -299,6 +301,11 @@ sub process_masked_BAM_file{
 	    # warn "read unmapped:\n$_\n"; sleep(1);
 	    $unmapped++;
 	    next; # skipping
+	}
+
+	if ($flag & 0x900){ # secondary or supplementary alignment
+	    ++$secondary_supplementary;
+	    next;
 	}
 
 	my $md_tag = $1 if ($_ =~ /MD:Z:(.+?)\s+/);
@@ -337,6 +344,12 @@ sub process_masked_BAM_file{
 	    }
 	    else{ # no deletion of the N position itself
 		++$count_N_containing;
+		my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
+		unless ($consistent){
+		    warn "Skipping read $id and any other reads with no sequence or an MD tag that does not match the CIGAR ($why)\n" unless ($malformed);
+		    ++$malformed;
+		    next;
+		}
 		### Determine whether the N was a known SNP and whether we can assign an allele
 		($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
 		# print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
@@ -397,9 +410,9 @@ sub process_masked_BAM_file{
 
     ### Printing Summary reports of the stats on a per-read basis
 
-    my ($perc_no_snp,$perc_genome1,$perc_genome2,$perc_bizarre,$perc_unassigned,$perc_unmapped);
+    my ($perc_no_snp,$perc_genome1,$perc_genome2,$perc_bizarre,$perc_unassigned,$perc_unmapped,$perc_secondary,$perc_malformed);
     if ($count == 0){
-		$perc_unassigned = $perc_no_snp = $perc_genome1 = $perc_genome2 = $perc_bizarre = $perc_unmapped = 'N/A';
+		$perc_unassigned = $perc_no_snp = $perc_genome1 = $perc_genome2 = $perc_bizarre = $perc_unmapped = $perc_secondary = $perc_malformed = 'N/A';
     }
     else{
 		$perc_unassigned = sprintf ("%.2f",$unassigned*100/$count);
@@ -408,11 +421,15 @@ sub process_masked_BAM_file{
 		$perc_genome2    = sprintf ("%.2f",$genome2*100/$count);
 		$perc_bizarre    = sprintf ("%.2f",$bizarre*100/$count);
 		$perc_unmapped   = sprintf ("%.2f",$unmapped*100/$count);
+		$perc_secondary  = sprintf ("%.2f",$secondary_supplementary*100/$count);
+		$perc_malformed  = sprintf ("%.2f",$malformed*100/$count);
     }
 
     warn "\nAllele-tagging report\n",'='x21,"\n";
     warn "Processed $count read alignments in total\n";
     warn "Reads were unaligned and hence skipped: $unmapped ($perc_unmapped%)\n";
+    warn "Reads were secondary or supplementary alignments and hence skipped: $secondary_supplementary ($perc_secondary%)\n";
+    warn "Reads had no sequence or an MD tag that did not match the CIGAR, and were skipped: $malformed ($perc_malformed%)\n";
     warn "$unassigned reads were unassignable ($perc_unassigned%)\n";
     warn "$genome1 reads were specific for genome 1 ($perc_genome1%)\n";
     warn "$genome2 reads were specific for genome 2 ($perc_genome2%)\n";
@@ -425,6 +442,8 @@ sub process_masked_BAM_file{
     print REPORT "\nAllele-tagging report\n",'='x21,"\n";
     print REPORT "Processed $count read alignments in total\n";
     print REPORT "Reads were unaligned and hence skipped: $unmapped ($perc_unmapped%)\n";
+    print REPORT "Reads were secondary or supplementary alignments and hence skipped: $secondary_supplementary ($perc_secondary%)\n";
+    print REPORT "Reads had no sequence or an MD tag that did not match the CIGAR, and were skipped: $malformed ($perc_malformed%)\n";
     print REPORT "$unassigned reads were unassignable ($perc_unassigned%)\n";
     print REPORT "$genome1 reads were specific for genome 1 ($perc_genome1%)\n";
     print REPORT "$genome2 reads were specific for genome 2 ($perc_genome2%)\n";
@@ -674,6 +693,60 @@ sub locate_md_offset{
 		}
     }
     return ();
+}
+
+# 1 if SEQ, CIGAR and MD tag agree with each other and with the SAM format; else (0, the reason)
+sub read_is_consistent{
+    my ($cigar,$md_tag,$sequence) = @_;
+    return (0,'no sequence') if ($sequence eq '*');
+    return (0,'no CIGAR') if ($cigar eq '*');
+    return (0,'CIGAR not in SAM format') unless ($cigar =~ /^(?:\d+[MIDNSHP=X])+$/);
+    return (0,'MD tag not in SAM format') unless ($md_tag =~ /^\d+(?:(?:[A-Za-z]|\^[A-Za-z]+)\d+)*$/);
+
+    my ($cigar_aligned,$query) = (0,0);
+    my @cigar_dels;
+    while ($cigar =~ /(\d+)([MIDNSHP=X])/g){
+		my ($len,$op) = ($1,$2);
+		if ($op eq 'M' or $op eq '=' or $op eq 'X'){
+			$cigar_aligned += $len;
+			$query         += $len;
+		}
+		elsif ($op eq 'I' or $op eq 'S'){
+			$query += $len;
+		}
+		elsif ($op eq 'D'){
+			add_deletion(\@cigar_dels,$cigar_aligned,$len);
+		}
+    }
+
+    my $md_aligned = 0;
+    my @md_dels;
+    while ($md_tag =~ /(\d+)|\^([A-Za-z]+)|([A-Za-z])/g){
+		if (defined $1){
+			$md_aligned += $1;
+		}
+		elsif (defined $2){
+			add_deletion(\@md_dels,$md_aligned,length $2);
+		}
+		else{
+			++$md_aligned;
+		}
+    }
+
+    return (0,'MD/CIGAR mismatch') unless ($md_aligned == $cigar_aligned and "@{[map {@$_} @md_dels]}" eq "@{[map {@$_} @cigar_dels]}");
+    return (0,'SEQ length mismatch') unless (length $sequence == $query);
+    return (1);
+}
+
+# Records a deletion as [aligned bases before it, length]; deletions with no aligned base between them are one
+sub add_deletion{
+    my ($dels,$aligned_before,$len) = @_;
+    if (@$dels and $dels->[-1][0] == $aligned_before){
+		$dels->[-1][1] += $len;
+    }
+    else{
+		push @$dels, [$aligned_before,$len];
+    }
 }
 
 
@@ -1105,11 +1178,12 @@ sub read_snps{
 	
 	while (<SNP>){
 		chomp;
-		++$snp_count;
 		$_ =~ s/\r|\n//g; # removing CR and LF line endings
+		next unless (/\S/);
+		++$snp_count;
 		my ($chr,$pos,$ref,$snp,$calls)  = (split /\t/,$_,5);
-		$calls =~ tr/\t//d; # one character per strain: a string costs a fraction of the memory of an array
-		die "Expected one 0/1 genotype call per strain in line $snp_count of the SNP file\n" if ($calls =~ /[^01]/ or length $calls != @strains);
+		$calls =~ tr/\t//d if (defined $calls); # one character per strain: a string costs a fraction of the memory of an array
+		die "Expected one 0/1 genotype call per strain in line $. of the SNP file\n" if (!defined $calls or $calls =~ /[^01]/ or length $calls != @strains);
 		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
 		# last if ($snp_count == $stopat);
