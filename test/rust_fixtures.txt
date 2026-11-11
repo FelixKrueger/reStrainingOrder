@@ -10,12 +10,17 @@ prepare_version
 report_help
 report_version
 
+# reStraining
+prepare_chromosome_missing_from_genome
+prepare_missing_vcf
+prepare_no_genome
+prepare_no_vcf
+prepare_v7_abbreviated
+prepare_v8
+
 # These pass only because the tool is not ported yet and stops with an error, which is
 # what these fixtures expect for other reasons. They move to their tool's section when
 # that tool is ported.
 order_missing_input
 order_no_snp_file
 order_no_sorting_needs_bam
-prepare_chromosome_missing_from_genome
-prepare_missing_vcf
-prepare_no_vcf
