@@ -30,8 +30,8 @@ python3 test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
 |---|---|
 | multicall dispatch, option parsing, `--help`, `--version` | done |
 | `reStraining` | done: all `prepare_*` fixtures |
-| `reStrainingOrder` | done: all `order_*` fixtures but `order_skip_hybrid`, which needs the HTML report |
-| `reStrainingReport` | not started |
+| `reStrainingOrder` | done: all `order_*` fixtures |
+| `reStrainingReport` | done: all `report_*` fixtures |
 
 ## Verified equivalences
 
@@ -53,6 +53,11 @@ python3 test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
   hybrid, BAM, plain-text matrix, Bismark single-end and paired-end input, and for two files
   in one run. Every branch of the per-read classification has a read in the fixtures.
 
+- `reStrainingReport`: the HTML is identical to the Perl's apart from the date and time,
+  for a hybrid summary, a pure-strain summary without hybrid sections, `--candidates` and
+  `-o`. The template, plotly.js and both logos are compiled in from `plotly/`, and a unit
+  test checks the embedded copy against the file.
+
 ## Differences from the Perl
 
 - `reStraining` processes chromosomes in VCF header order. The Perl uses hash order, which
@@ -72,3 +77,6 @@ python3 test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
   The Perl opens its outputs first, and for such a name the report file is the input itself,
   so the input is truncated before the error.
 - `--verbose` is accepted but prints nothing extra.
+- The report assets are compiled into the binary, so it can be copied anywhere on its own.
+  This also means the crate cannot be published to crates.io as it is: `include_str!`
+  reaches outside the package directory for `plotly/`.

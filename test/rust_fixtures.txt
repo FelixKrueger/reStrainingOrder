@@ -30,4 +30,12 @@ order_no_snp_file
 order_no_sorting_needs_bam
 order_paired_flag
 order_pure
+order_skip_hybrid
 order_two_files
+
+# reStrainingReport
+report_bad_candidates
+report_found_in_cwd
+report_named_output
+report_none_found
+report_pure_skip_hybrid

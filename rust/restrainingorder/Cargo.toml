@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 flate2.workspace = true
+libc.workspace = true
 noodles-bam.workspace = true
 noodles-bgzf.workspace = true
 noodles-sam.workspace = true
