@@ -683,14 +683,11 @@ sub detect_chroms{
 	    # warn "Identified chromosome $chr\n";
 	    unless (exists $chrom{$chr}){
 		$chrom{$chr}++;
+		push @chrom, $chr; # in the order of the VCF header
 	    }
 	}
     }
     
-    foreach my $chr(keys %chrom){
-	# warn "$chr\n";	
-	push @chrom, $chr;
-    }
     # close DETECT or warn "Failed to close filehandle DETECT: $!\n";
     return @chrom;
     
