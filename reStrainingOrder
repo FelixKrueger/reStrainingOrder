@@ -48,6 +48,14 @@ my @strain_counts; # $strain_counts[$strain] the same, for the positions where t
 my @pair_counts;   # $pair_counts[$strain1][$strain2] the same, for the positions where both strains have the ALT genotype
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
 
+# Checked before any output is opened: the output names are derived by replacing the extension,
+# so for any other name they would be the input file itself
+foreach my $file (@ARGV){
+    unless ($file =~ /\.(sam|bam)$/){
+		die "Please supply a file in either SAM or BAM format (ending with .sam or .bam). File name given was '$file'\n\n";
+    }
+}
+
 while (@ARGV){
     my $file = shift @ARGV;
 
@@ -99,12 +107,7 @@ while (@ARGV){
     if ($file =~/\.sam$/){
 		$file = sam2bam_convert($file);
     }
-    elsif ($file =~ /\.bam$/){
-		# fine
-    }
-    else{
-		die "Please supply a file in either SAM or BAM format (ending with .sam or .bam). File name given was '$file'\n\n";
-    }
+    # else it is a BAM file, which is fine
 
     ### Paired-end
     if ($paired){
@@ -170,7 +173,7 @@ while (@ARGV){
 		print PAIRWISE "Potential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
 		# warn "Strain combination #\tPotential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
 		# Printing the table
-		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
+		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage} or $a <=> $b} keys %pairwise){ # ties in strain order
 			# warn "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}%\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";
 			print PAIRWISE "$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";	
 		}
@@ -182,7 +185,7 @@ while (@ARGV){
 		print RATIOS "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		# warn         "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		my $processed_count = 0;
-		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
+		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage} or $a <=> $b} keys %pairwise){ # ties in strain order
 			# last if ($processed_count == 7);
 			++$processed_count;	
 			# warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
@@ -209,7 +212,7 @@ while (@ARGV){
     ###############################
 
     # Calling reStrainingReport now to generate an HTML report
-    system ("$RealBin/reStrainingReport");
+    system ("$RealBin/reStrainingReport", "--dir", $output_dir, "--summary_report", "${output_dir}$summary_stats_file");
 
    	warn "reStrainingOrder run complete...\n\n";
 }
@@ -221,7 +224,7 @@ sub collate_summary{
 
 	warn "\n\nFinishing up by collating all result files (writing to $summary_stats_file)...\n";
 
-	open (my $tmp,$outfile) or die $!;
+	open (my $tmp,"${output_dir}$outfile") or die "Failed to read ${output_dir}$outfile: $!\n";
 	print SUMMARY "STRAIN SCORES\n";
 	while (<$tmp>){
 		print SUMMARY;
@@ -231,7 +234,7 @@ sub collate_summary{
 	unless($skip_hybrid_detection){
 		print SUMMARY "\n";
 
-		open ($tmp,$pairwise_hybrid_file) or die $!;
+		open ($tmp,"${output_dir}$pairwise_hybrid_file") or die "Failed to read ${output_dir}$pairwise_hybrid_file: $!\n";
 		print SUMMARY "HYBRID SCORES\n";
 		while (<$tmp>){
 			print SUMMARY;
@@ -239,7 +242,7 @@ sub collate_summary{
 		close $tmp or warn $!;
 		print SUMMARY "\n";
 
-		open ($tmp,$hybrid_scores_file) or die $!;
+		open ($tmp,"${output_dir}$hybrid_scores_file") or die "Failed to read ${output_dir}$hybrid_scores_file: $!\n";
 		print SUMMARY "ALLELE RATIOS\n";
 		while (<$tmp>){
 			print SUMMARY;
@@ -262,6 +265,9 @@ sub process_masked_BAM_file{
     ### READING FROM MAPPING BAM FILE
 
     ($no_snp,$genome1,$genome2,$bizarre,$unassigned,$ct_snp,$unassigned_but_ct) = (0,0,0,0,0,0,0);
+    # the SNP positions are kept for the next file, but what this file's reads said about them is not
+    ($snp_found,$no_snp_found) = (0,0);
+    %counts = ();
     my $count = 0;
 
     my $count_N_containing = 0;
@@ -537,64 +543,7 @@ sub determine_N_position{
 				if ($verbose){ warn "Start: $start\tpos: $pos\n"; sleep(1);};
 			}
 
-			my $genomic_pos = $pos + $start;
-			# warn "Testing to see if the SNP existed\n";
-			### seeing if the SNP is present in the SNP position list
-			if (exists $snps{$chr}->{$genomic_pos}){
-				++$snp_found;
-				my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
-				# warn "SNP existed!\n";sleep(1);
-				if ($verbose) { warn "SNP was present: ref: $ref_base\tsnp: $snp_base\n";}
-				if ($verbose){ warn "pos: $pos\n$sequence\n";}
-				my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
-				if ($verbose) { warn "base in read was: $read_base\n";}
-
-				if ($bisulfite){
-					# warn "Now doing a bisulfite tally\n";
-					($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
-				}
-				else{ ## DEFAULT
-
-					# like this we can move through  the file
-					#foreach my $chr(keys %snps){
-					#	foreach my $pos(keys %{$snps{$chr}} ){
-					#		foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
-								# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-					#		}
-							# warn "~~~~~\n";
-					#	}		
-					#	}
-					# print "CHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
-						
-					if ($read_base eq $ref_base){
-						if ($verbose) { warn "genome 1 specific SNP!\n";}
-						++$genome1;
-						$counts{$chr}->{$genomic_pos}->{REF}++;
-						# $counting{'C57BL6'}++;
-						# print "$snps{$chr}->{$genomic_pos}->{strain}";
-						# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
-						# ${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
-					}
-					elsif ($read_base eq $snp_base){
-						if ($verbose) { warn "genome 2 specific SNP!\n";}
-						### This is when we know that this has to be a certain strain
-						# warn "$snps{$chr}->{$genomic_pos}->{strain}\nWhat does this incrementer do?: >>$counting{$snps{$chr}->{$genomic_pos}->{strain}}<<\n\n";
-						# $counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
-						$counts{$chr}->{$genomic_pos}->{ALT}++;
-						#${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
-						++$genome2;
-					}
-					else{
-						if ($verbose) { warn "The base was different to both genome 1 or genome 2: $read_base\n";}
-						++$irrelevant;
-						$counts{$chr}->{$genomic_pos}->{OTHER}++;
-					}
-				}
-			}
-			else{
-				++$no_snp_found;
-				if ($verbose) { warn "SNP was not present in the SNP list\n";}
-			}
+			($genome1,$genome2,$irrelevant,$ct_unassigned) = score_snp_position($chr,$pos + $start,substr($sequence,$pos,1),$line,$genome1,$genome2,$irrelevant,$ct_unassigned);
 
 			if ($verbose) { warn "now adjusting the position for the N itself\n";}
 			$pos += 1; # adjusting position for the N itself. irrelevant if this is the last element of the array
@@ -604,296 +553,129 @@ sub determine_N_position{
 		if ($verbose) { warn "~~~~~~~~~~~~~~~~~~~~\n\n\n\n";}
 
     }
-    else{ # CIGAR string is not a simple match
-		if ($verbose){
-			warn "CIGAR string is not a simple match:\n";
-			print "MD-tag: $md_tag\tIndividual elements are:\n";
-			print join ("\t",@ns),"\n";
+    else{ # any other CIGAR string: locate each N of the MD tag in the read and the genome
+		foreach my $offset (md_n_offsets($md_tag)){
+			my ($read_index,$genome_offset) = locate_md_offset($cigar,$offset);
+			next unless (defined $read_index); # the N was deleted, but such reads were already called conflicting
+			($genome1,$genome2,$irrelevant,$ct_unassigned) = score_snp_position($chr,$start + $genome_offset,substr($sequence,$read_index,1),$line,$genome1,$genome2,$irrelevant,$ct_unassigned);
 		}
-		
-		# warn "For the time being, only looking at perfect matches\n";
- 		return ($genome1,$genome2,$ct_unassigned);
-
-		die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
-		my $pos = 0;
-		my %insertions_accounted_for;
-
-		### STEP I: determining the position of the N(s) in the read
-
-	foreach my $index (0..($#ns-1)){ # the last index of @ns is the number of matching strings after the last N, so is not relevant
-
-	    if ($ns[$index] =~/\D/){ # non-digit
-
-		if ($ns[$index] =~/\W/){ # non-word character, e.g. ^ for deletions
-		    if ($verbose) { warn "element contains a Non-Word character: $ns[$index]\n";}
-		    if ($ns[$index] =~ /\^/){ # contains deletion
-			if ($verbose){  warn "This was a deletion\n";}
-
-			# split into single characters
-			my @string = split //,$ns[$index];
-			if ($verbose){  warn "before starting, \$pos was $pos\n";}
-			my $operation; # will store the operation, either a number for matches or a variable number of letters for deletions
-			foreach my $char (@string){
-
-			    # setting first element
-			    unless (defined $operation){ # can be 0
-				if ($verbose){	warn "Setting \$operation to $char\n";}
-				$operation = $char;
-				next;
-			    }
-			    if ($verbose){   warn "$char\n";}
-
-			    if ($operation =~ /\d+/){
-				if ($verbose){ warn "$operation is a digit\n";}
-				if ($char =~ /\d+/){
-				    if ($verbose){ warn "appending $char to $operation\n";}
-				    $operation .= $char;
-				    if ($verbose){ warn "\$operation is now $operation\n";}
-				}
-				else{
-				    if ($verbose){  warn "\$char is now a non-digit character, so need to process \$operation\n";}
-				    $pos += $operation;
-				    if ($verbose){  warn "\$pos is now $pos\n";}
-
-				    # setting $operation as the new character
-				    $operation = $char;
-				    if ($verbose){  warn "Setting \$operation to: $operation\n";}
-				}
-			    }
-			    else{ # $operation is a non-digit character
-				if ($verbose){ 	warn "$operation is a non-digit character\n";}
-
-				if ($char =~ /\d+/){
-				    if ($verbose){ 	warn "\$char is now a digit, so need to process \$operation: $operation\n";}
-
-				    if ($operation =~ /^\^/){ #  if the string starts with a ^ symbol is was a deletion
-					if ($verbose){ 	 warn "Deletions do not count towards the position within a read -> skipping...\n";}
-				    }
-				    else{	                    # else it was a mismatch and the full length needs to be considered
-					if ($verbose){ warn "Now adding length of \$operation (just a mismatch)\n";}
-					$pos += (length $operation);
-				    }
-				    if ($verbose){ warn "\$pos is now $pos\n";}
-
-				    # setting $operation as the new character
-				    $operation = $char;
-				    if ($verbose){ warn "Setting \$operation to: $operation\n";}
-				}
-				else{
-				    if ($verbose){  warn "appending $char to $operation\n";}
-				    $operation .= $char;
-				    if ($verbose){ warn "\$operation is now $operation\n";}
-				}
-			    }
-			}
-			if ($verbose){ 	    warn "Now processing the last string which has to be a number\n";}
-			die "\$operation was not a number: '${operation}'!" unless ($operation =~ /\d+/);
-			$pos += $operation;
-			if ($verbose){   warn "\$pos is now $pos\n\n";}
-		    }
-		    else{
-			# this might give us a clue of which other characters might turn up in the MD-tag
-			if ($verbose){ warn "The character was no deletion: $ns[$index]\n"; sleep(1);}
-		    }
-		}
-		else{
-		    if ($verbose){ warn "Element contains a Non-DIGIT word character(s), but is no deletion: $ns[$index]\n";}
-		    my @array = split /[ATCG]/,$ns[$index];
-
-		    if ($verbose){
-			warn "Elements in the array: ",scalar @array,"\n";
-			print join ("\t",@array),"\n";
-		    }
-
-		    foreach my $element(@array){
-			if ($verbose){  warn "Adding $element to pos\n";}
-			$pos += $element;
-			if ($verbose){ warn "pos right now: $pos\n";}
-		    }
-		    if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n";}
-		    $pos += (scalar @array) - 1;
-		    if ($verbose){ warn "pos right now: $pos\n";}
-		}
-	    }
-	    else{ # element is a digit, so we can just add it to the position
-		if ($verbose){ warn "element is $ns[$index]\n"; }
-		$pos += $ns[$index];
-		if ($verbose){ warn "Start: $start\tpos: $pos\n"; }
-	    }
-
-
-	    ### STEP II: Adjusting $pos for insertions
-	    # Insertions in the read are omitted from the MD:Z: tag, and can only be seen when processing the CIGAR string. In order not to extract the wrong base from the read we quickly process the CIGAR string and adjust $pos if necessary
-
-	    # Even though insertions should affect the position within a read, they are in fact absent from the MD:Z: field. Here is an example:
-	    # HISEQ2500-01:182:H89GMADXX:1:1101:15083:2899    83      17      31124195        42      9M2I40M =       31124087        -157    GAGGCTCATGAGGCCTAGCTGACAGTGTCCCCTGCCCCTTGGTCAGTTTAC     JJJJJJJJJJJJJJJJJJJIJJJJJJJJJJJJJJJJJJHHGHHFFFFFCCC AS:i:-12 XN:i:1  XM:i:1  XO:i:1  XG:i:2  NM:i:3  MD:Z:44N4       YS:i:0  YT:Z:CP
-	    # The sequence is 51bp long, so is the CIGAR string, but the MD:Z: field is only 49bp long!!
-
-	    if ($verbose){  warn "\nNow adjusting \$pos for potential insertions in the read. \$pos now is $pos\n";}
-	    my $total_length_of_ops = 0;
-	    if ($verbose){  warn "\$total_length_of_ops is $total_length_of_ops at the start\n";}
-
-	    foreach my $index(0..$#len){
-		if ($ops[$index] eq 'M'){  # standard matching bases
-		    $total_length_of_ops += $len[$index];
-		    if ($verbose){ warn "\$total_length_of_ops is $total_length_of_ops\n";}
-		}
-		elsif ($ops[$index] eq 'D'){  # deletions do not count towards the position within the read
-		    if ($verbose){ warn "Deletion. skipping...\n";}
-		}
-		elsif ($ops[$index] eq 'N'){  # splice junctions are similar to deletions and do not count towards the position within the read
-		    if ($verbose){ warn "Splice junction. skipping...\n";}
-		}
-		elsif($ops[$index] eq 'I'){
-		    if ($total_length_of_ops >= $pos){
-			if ($verbose){ warn "\$pos is $pos, but there were already enough matches to be at position $total_length_of_ops! Exiting adjustment\n\n";}
-			last; # exiting now
-		    }
-		    else{
-			if (exists $insertions_accounted_for{$total_length_of_ops} ){ # if we have already adjusted the position for this insertion we skip it this time
-			    if ($verbose){ warn "This insertion has been accounted for already. Skipping this time...\n";}
-			    next;
-			}
-			else{
-			    ++$insertions_accounted_for{$total_length_of_ops};
-			    if ($verbose){ warn "Operation is 'I', adding length of $len[$index]\n";}
-			    $pos += $len[$index];
-			    if ($verbose){ warn "New \$pos is now: $pos\n";}
-			}
-		    }
-		}
-		else{
-		    die "Found CIGAR operations other than M, I, D or N: '$ops[$index]'. Not allowed at the moment\n";
-		}
-	    }
-
-	    ### STEP III; Determining the genomic position
-	    my $genomic_pos = $start; # this is the start of the read
-	    my $temp_pos = $pos;
-	    my $endpos = $start; # of the current CIGAR operation
-	    my $operation_length = 0;
-	    if ($verbose){
-		warn "Chromosome is $chr\n";
-		warn "Now determining the genomic position of the SNP\n";
-		warn "Position within the read is: $temp_pos. MD-tag is: $md_tag\n"; sleep(1);
-		warn "To start with, genomic position is: $genomic_pos\n";
-		warn "To start with, operation length is $operation_length\n\n";
-	    }
-
-	    ### determining end position of a read
-	    foreach my $index(0..$#len){
-
-		$operation_length = $len[$index];
-
-		if ($ops[$index] eq 'M'){  # standard matching bases
-		    $endpos += $len[$index];
-		    if ($verbose){
-			warn "Operation is 'M', length $len[$index] bp\n";
-			warn "Endpos is now: $endpos\n";
-			warn "Operation length is now: $operation_length\n";
-		    }
-
-		    # testing to see if the position within the read is contained within this stretch of matching bases
-		    if ($temp_pos <= $operation_length){
-			if ($verbose){
-			    warn "Read overlaps the N position\n";
-			    warn "\$temp_pos is: $temp_pos\n";
-			}
-			$genomic_pos += $temp_pos;
-			if ($verbose){ warn "Setting \$genomic_pos to: $genomic_pos\n";}
-			last; # once we have got the genomic positions we can continue
-		    }
-		    else{
-			# adding the length of the M operation to genomic position
-			if ($verbose){   warn "Read does not yet overlap the N position\n";}
-			# adjusting the genomic position
-			$genomic_pos += $operation_length;
-			$temp_pos    -= $operation_length; # subtracting the operation length from the length within the read
-			if ($verbose){
-			    warn "Adding $operation_length to \$genomic_pos. Now at: $genomic_pos\n";
-			    warn "Subtracting $operation_length from \$temp_pos. Now at: $temp_pos\n";
-			}
-		    }
-		}
-		elsif($ops[$index] eq 'I'){ # insertions in the read do not affect the genomic position
-		    if ($verbose){
-			warn "Operation is 'I', not adjusting genomic position but \$temp_pos\n";
-			warn "Operation length is now: $operation_length\n\n";
-		    }
-		    $temp_pos    -= $operation_length; # subtracting the operation length from the length within the read
-		    if ($verbose){  warn "\$temp_pos is now: $temp_pos\n";}
-		    # Since we have adjusted $pos in STEP II we can now subtract the length of the insertion from the read (which I find logical)
-		}
-		elsif($ops[$index] eq 'D'){ # deletions do affect the genomic position but not the $temp_pos within the read
-		    if ($verbose){   warn "Operation is 'D',adding $len[$index] bp to the genomic position\n";}
-		    ### eaxample read with a deletion, length 51 bp
-		    # HISEQ2500-01:182:H89GMADXX:1:1101:15249:2789    99      8       87082089        23      33M6D18M        =       87082185        147     ACAGCCAACTGCTTTCCTCCAGGGGTGCCCATGACCTGCACACCTCAGCTG     CCCFFFFFHHHHHJJJJJJJJJJJJHHIJJJJJJJJJJJJJJJJJJJJJJJ  AS:i:-24        XN:i:1  XM:i:1  XO:i:1  XG:i:6  NM:i:7  MD:Z:33^ACTCGA11N6      YS:i:-1 YT:Z:CP
-		    $genomic_pos += $operation_length;
-		    if ($verbose){
-			warn "Operation length is now: $operation_length\n\n";
-			warn "Adding $operation_length to \$genomic_pos. Now at: $genomic_pos\n";
-		    }
-		}
-		elsif($ops[$index] eq 'N'){ # skipped regions (= splice junctions) do affect the genomic position but not the $temp_pos within the read (similar to deletions)
-		    if ($verbose){	  warn "Operation is 'N', adding $len[$index] bp to the genomic position\n";}
-		    $genomic_pos += $len[$index];
-		    if ($verbose){  warn "Endpos is now: $endpos\n";}
-		}
-		else{
-		    die "Found CIGAR operations other than M, I, D or N: '$ops[$index]'. Not allowed at the moment\n";
-		}
-	    }
-
-	    ### STEP IV: determining if the SNP is present in the SNP position list, and whether the position in the read was the reference or SNP base
-	    if ($verbose){   warn "Found a match, genomic position should be: $genomic_pos\n~~~~~~~~~~~~~~\n\n"; sleep(1);}
-	    if (exists $snps{$chr}->{$genomic_pos}){
-		++$snp_found;
-		my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
-
-		if ($verbose){	warn "SNP was present: ref: $ref_base\tsnp: $snp_base\n";}
-		if ($verbose){	warn "pos: $pos\n$sequence\n";}
-		my $read_base = substr($sequence,$pos,1); # The N position has not been adjusted for the N yet so can be used as index
-
-		if ($verbose){	warn "base in read was: $read_base\n";}
-		if ($bisulfite){
-		    ($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
-		}
-		### Non-bisulfite setting ( = DEFAULT)
-		else{
-		    if ($read_base eq $ref_base){
-				if ($verbose){ warn "genome 1 specific!\n";}
-					++$genome1;
-				}
-				elsif ($read_base eq $snp_base){
-					if ($verbose){ warn "genome 2 specific!\n";}
-					++$genome2;
-				}
-				else{
-					if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
-					++$irrelevant;
-				}
-			}
-	    }
-	    else{
-		++$no_snp_found;
-		if ($verbose){
-		    warn "SNP was not present in the SNP list\n";
-		}
-
-	    }
-
-	    if ($verbose){  warn "now adjusting the position for the N itself\n";}
-	    $pos += 1; # adjusting position for the N itself. irrelevant if this is the last element of the array
-	    if ($verbose){ warn "pos right now: $pos\n";}
-	}
-
-	if ($verbose){  warn "***************************\n\n\n\n";}
-
     }
 
     return ($genome1,$genome2,$ct_unassigned);
 
 }
+
+# Scores the read base at one N-masked position: genome 1 or 2 for this read, and REF, ALT or OTHER for the position
+sub score_snp_position{
+
+	my ($chr,$genomic_pos,$read_base,$line,$genome1,$genome2,$irrelevant,$ct_unassigned) = @_;
+	# warn "Testing to see if the SNP existed\n";
+	### seeing if the SNP is present in the SNP position list
+	if (exists $snps{$chr}->{$genomic_pos}){
+		++$snp_found;
+		my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
+		# warn "SNP existed!\n";sleep(1);
+		if ($verbose) { warn "SNP was present: ref: $ref_base\tsnp: $snp_base\n";}
+		if ($verbose) { warn "base in read was: $read_base\n";}
+
+		if ($bisulfite){
+			# warn "Now doing a bisulfite tally\n";
+			($genome1,$genome2,$irrelevant,$ct_unassigned) = score_bisulfite_SNPs($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned);
+		}
+		else{ ## DEFAULT
+
+			# like this we can move through  the file
+			#foreach my $chr(keys %snps){
+			#	foreach my $pos(keys %{$snps{$chr}} ){
+			#		foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
+						# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
+			#		}
+					# warn "~~~~~\n";
+			#	}		
+			#	}
+			# print "CHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
+				
+			if ($read_base eq $ref_base){
+				if ($verbose) { warn "genome 1 specific SNP!\n";}
+				++$genome1;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
+				# $counting{'C57BL6'}++;
+				# print "$snps{$chr}->{$genomic_pos}->{strain}";
+				# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
+				# ${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
+			}
+			elsif ($read_base eq $snp_base){
+				if ($verbose) { warn "genome 2 specific SNP!\n";}
+				### This is when we know that this has to be a certain strain
+				# warn "$snps{$chr}->{$genomic_pos}->{strain}\nWhat does this incrementer do?: >>$counting{$snps{$chr}->{$genomic_pos}->{strain}}<<\n\n";
+				# $counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
+				#${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
+				++$genome2;
+			}
+			else{
+				if ($verbose) { warn "The base was different to both genome 1 or genome 2: $read_base\n";}
+				++$irrelevant;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
+			}
+		}
+	}
+	else{
+		++$no_snp_found;
+		if ($verbose) { warn "SNP was not present in the SNP list\n";}
+	}
+
+	return ($genome1,$genome2,$irrelevant,$ct_unassigned);
+}
+
+# Reference offsets (from the alignment start) of the Ns in an MD tag
+sub md_n_offsets{
+    my ($md_tag) = @_;
+    my $offset = 0;
+    my @ns;
+    while ($md_tag =~ /(\d+)|\^([A-Za-z]+)|([A-Za-z])/g){
+		if (defined $1){
+			$offset += $1;
+		}
+		elsif (defined $2){ # deleted bases are in the reference only
+			$offset += length $2;
+		}
+		else{
+			push @ns, $offset if ($3 eq 'N');
+			++$offset;
+		}
+    }
+    return @ns;
+}
+
+# Where the base at an MD offset is, as (index in the read, offset from the alignment start in the genome);
+# empty if that base is deleted. The MD tag counts deleted bases but not skipped ones (N, e.g. introns)
+sub locate_md_offset{
+    my ($cigar,$offset) = @_;
+    my ($md,$read,$genome) = (0,0,0);
+    while ($cigar =~ /(\d+)([MIDNSHP=X])/g){
+		my ($len,$op) = ($1,$2);
+		if ($op eq 'M' or $op eq '=' or $op eq 'X'){
+			return ($read + $offset - $md, $genome + $offset - $md) if ($offset < $md + $len);
+			$md     += $len;
+			$read   += $len;
+			$genome += $len;
+		}
+		elsif ($op eq 'I' or $op eq 'S'){ # bases in the read only
+			$read += $len;
+		}
+		elsif ($op eq 'D'){ # bases in the reference and the MD tag only
+			return () if ($offset < $md + $len);
+			$md     += $len;
+			$genome += $len;
+		}
+		elsif ($op eq 'N'){ # bases in the reference only
+			$genome += $len;
+		}
+    }
+    return ();
+}
+
 
 
 
@@ -981,6 +763,7 @@ sub score_bisulfite_SNPs{
 			else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 			}
 
 		}
@@ -1450,7 +1233,7 @@ sub open_output_filehandles{
     my $outfile = my $pairwise_hybrid_file = my $hybrid_scores_file = my $report_file = my $summary_stats_file = $file;
 
     # if files were sorted they look like this
-    $report_file =~ s/sorted\.//;
+    $report_file =~ s/(?<![A-Za-z0-9])sorted\.//; # only where it starts a word, as in SNPsplit
     
     # reStrainingOrder Report - storing pretty much everything that could be useful
     $report_file =~ s/sam$/bam/;
@@ -1514,7 +1297,7 @@ sub open_output_filehandles{
 sub check_for_bs{
 
     my ($paired_end,$samtools_path) = @_;
-    my $isBismark;
+    my $isBismark = 0; # set by any Bismark @PG line, as later tools (e.g. samtools sort) add @PG lines of their own
 
     # SAM/BAM format, checking the first file supplied
 
@@ -1552,9 +1335,6 @@ sub check_for_bs{
 			$paired_end = 0;
 		    }
 		}
-	    }
-	    else{
-		$isBismark = 0;
 	    }
 	}
     }
@@ -1629,16 +1409,16 @@ sub test_positional_sorting{
 
 sub calculate_single_strain_tallies{
 
+	%strain_tallies = (); # from this file only
 	warn "STAGE I: Calculating strain tallies to determine agreement percentage\n=====================================================================\n\n";
 	return unless ($covered_positions);
 	foreach my $index (0..$#strains){
 		my ($ref1,$alt1) = @{$strain_counts[$index]};                       # positions where the strain looks like the ALT base
 		my ($ref0,$alt0) = ($total_counts[0]-$ref1,$total_counts[1]-$alt1); # and where it looks like the reference
-		# += as before: with several input files the tallies add up from one file to the next
-		$strain_tallies{$strains[$index]}->{positions_covered} += $covered_positions;
-		$strain_tallies{$strains[$index]}->{agree}    += $ref0 + $alt1;
+		$strain_tallies{$strains[$index]}->{positions_covered} = $covered_positions;
+		$strain_tallies{$strains[$index]}->{agree}    = $ref0 + $alt1;
 		# Bases other than ALT or REF disagree by definition
-		$strain_tallies{$strains[$index]}->{disagree} += $alt0 + $ref1 + $total_counts[2];
+		$strain_tallies{$strains[$index]}->{disagree} = $alt0 + $ref1 + $total_counts[2];
 	}
 }
 
@@ -1827,8 +1607,11 @@ sub print_single_strain_report{
 	print OUT "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\tagreement\n";
 	warn      "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\tagreement [%]\n";
 
-	# printing in decreasing order of % agreement
- 	foreach my $strain (sort { $strain_tallies{$b}->{agreeable} cmp $strain_tallies{$a}->{agreeable} } keys %strain_tallies){ 
+	# printing in decreasing order of % agreement (numerically, 'NA' last), ties in the order of the SNP file header
+	my %header_order;
+	@header_order{@strains} = (0..$#strains);
+	my $agreement = sub { my $percent = $strain_tallies{$_[0]}->{agreeable}; $percent eq 'NA' ? -1 : $percent };
+ 	foreach my $strain (sort { $agreement->($b) <=> $agreement->($a) or $header_order{$a} <=> $header_order{$b} } keys %strain_tallies){ 
 
 		unless (defined $strain_tallies{$strain}->{agree}){
 			$strain_tallies{$strain}->{agree} = 0;
