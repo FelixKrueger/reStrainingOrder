@@ -1,6 +1,7 @@
 //! reStrainingOrder: mouse strain identification from alignments to an N-masked
 //! multi-strain genome. A port of the Perl scripts in the repository root.
 
+pub mod alignments;
 pub mod cli;
 pub mod order;
 pub mod prepare;

@@ -18,9 +18,16 @@ prepare_no_vcf
 prepare_v7_abbreviated
 prepare_v8
 
-# These pass only because the tool is not ported yet and stops with an error, which is
-# what these fixtures expect for other reasons. They move to their tool's section when
-# that tool is ported.
+# reStrainingOrder
+order_bisulfite_pe
+order_bisulfite_pe_possorted
+order_bisulfite_se
+order_hybrid_bam
+order_hybrid_plain_matrix
 order_missing_input
+order_no_files
 order_no_snp_file
 order_no_sorting_needs_bam
+order_paired_flag
+order_pure
+order_two_files

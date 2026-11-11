@@ -30,7 +30,7 @@ python3 test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
 |---|---|
 | multicall dispatch, option parsing, `--help`, `--version` | done |
 | `reStraining` | done: all `prepare_*` fixtures |
-| `reStrainingOrder` | not started |
+| `reStrainingOrder` | done: all `order_*` fixtures but `order_skip_hybrid`, which needs the HTML report |
 | `reStrainingReport` | not started |
 
 ## Verified equivalences
@@ -48,9 +48,27 @@ python3 test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
   prefix, options and file names in any order. Every option each Perl script declares is
   declared here under the same names and aliases.
 
+- `reStrainingOrder`: the report, strain scores, hybrid scores, allele ratios and summary are
+  identical to the Perl (up to the order of tied rows, which is random in the Perl) for pure,
+  hybrid, BAM, plain-text matrix, Bismark single-end and paired-end input, and for two files
+  in one run. Every branch of the per-read classification has a read in the fixtures.
+
 ## Differences from the Perl
 
 - `reStraining` processes chromosomes in VCF header order. The Perl uses hash order, which
   changes from run to run; only the order of lines in the genome preparation report and on
   stderr depends on it.
 - No `gzip`/`gunzip` subprocesses: gzip is read and written in-process.
+- `reStrainingOrder` reads SAM and BAM itself, so samtools is not needed and `--samtools_path`
+  is accepted and ignored. It writes no BAM files: the Perl converts SAM input to BAM next to
+  the input, and sorts paired-end BAM by name into `*.sortedByName.bam`. Neither changes a
+  score (reads are counted, so their order does not matter), so neither step is done.
+- Ties in the strain and hybrid tables keep the header order, so runs are reproducible. The
+  Perl's order of tied rows comes from hash order and changes between runs.
+- `--output_dir` works. The Perl writes the per-file tables there but then reads them back from
+  the current directory to build the summary, and dies. The HTML report is written next to the
+  summary.
+- An input whose name ends in neither `.sam` nor `.bam` is refused before anything is written.
+  The Perl opens its outputs first, and for such a name the report file is the input itself,
+  so the input is truncated before the error.
+- `--verbose` is accepted but prints nothing extra.

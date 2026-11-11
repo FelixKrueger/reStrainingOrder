@@ -12,6 +12,10 @@ repository = "https://github.com/FelixKrueger/reStrainingOrder"
 [workspace.dependencies]
 anyhow = "1.0"
 flate2 = "1.1"
+noodles-bam = "0.94"
+noodles-bgzf = "0.51"
+noodles-sam = "0.89"
+tempfile = "3.27"
 
 [profile.release]
 lto = "thin"
