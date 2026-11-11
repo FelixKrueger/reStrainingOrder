@@ -162,7 +162,7 @@ while (@ARGV){
 		print PAIRWISE "Potential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
 		# warn "Strain combination #\tPotential Hybrid\tAgreeing\tDisagreeing\tPercentage agreement\tStrain1 Index\tStrain2 Index\n";
 		# Printing the table
-		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
+		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage} or $a <=> $b} keys %pairwise){ # ties in strain order
 			# warn "$combo\t$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}%\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";
 			print PAIRWISE "$pairwise{$combo}->{hybrid}\t$pairwise{$combo}->{yes}\t$pairwise{$combo}->{no}\t$pairwise{$combo}->{percentage}\t$pairwise{$combo}->{strain1_index}\t$pairwise{$combo}->{strain2_index}\n";	
 		}
@@ -174,7 +174,7 @@ while (@ARGV){
 		print RATIOS "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		# warn         "Strain1\tStrain1 Count\tStrain1 Percentage\tStrain2\tStrain2 Count\tStrain2 Percentage\n";
 		my $processed_count = 0;
-		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage}} keys %pairwise){
+		foreach my $combo(sort {$pairwise{$b}->{percentage}<=>$pairwise{$a}->{percentage} or $a <=> $b} keys %pairwise){ # ties in strain order
 			# last if ($processed_count == 7);
 			++$processed_count;	
 			# warn "Now kicking off strain ratio calculation for Strains $pairwise{$combo}->{hybrid} (processed count = $processed_count)\n"; 
@@ -2176,8 +2176,11 @@ sub print_single_strain_report{
 	print OUT "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\tagreement\n";
 	warn      "Strain\tPositions covered\tAgreeing GT\tDisagreeing GT\tagreement [%]\n";
 
-	# printing in decreasing order of % agreement
- 	foreach my $strain (sort { $strain_tallies{$b}->{agreeable} cmp $strain_tallies{$a}->{agreeable} } keys %strain_tallies){ 
+	# printing in decreasing order of % agreement (numerically, 'NA' last), ties in the order of the SNP file header
+	my %header_order;
+	@header_order{@strains} = (0..$#strains);
+	my $agreement = sub { my $percent = $strain_tallies{$_[0]}->{agreeable}; $percent eq 'NA' ? -1 : $percent };
+ 	foreach my $strain (sort { $agreement->($b) <=> $agreement->($a) or $header_order{$a} <=> $header_order{$b} } keys %strain_tallies){ 
 
 		unless (defined $strain_tallies{$strain}->{agree}){
 			$strain_tallies{$strain}->{agree} = 0;
