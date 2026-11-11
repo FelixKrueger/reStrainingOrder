@@ -1439,7 +1439,7 @@ sub open_output_filehandles{
     my $outfile = my $pairwise_hybrid_file = my $hybrid_scores_file = my $report_file = my $summary_stats_file = $file;
 
     # if files were sorted they look like this
-    $report_file =~ s/sorted\.//;
+    $report_file =~ s/(?<![A-Za-z0-9])sorted\.//; # only where it starts a word, as in SNPsplit
     
     # reStrainingOrder Report - storing pretty much everything that could be useful
     $report_file =~ s/sam$/bam/;
