@@ -41,6 +41,14 @@ my %strain_tallies;
 my %pairwise; # storing all pairwise comparisons
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
 
+# Checked before any output is opened: the output names are derived by replacing the extension,
+# so for any other name they would be the input file itself
+foreach my $file (@ARGV){
+    unless ($file =~ /\.(sam|bam)$/){
+		die "Please supply a file in either SAM or BAM format (ending with .sam or .bam). File name given was '$file'\n\n";
+    }
+}
+
 while (@ARGV){
     my $file = shift @ARGV;
 
@@ -92,12 +100,7 @@ while (@ARGV){
     if ($file =~/\.sam$/){
 		$file = sam2bam_convert($file);
     }
-    elsif ($file =~ /\.bam$/){
-		# fine
-    }
-    else{
-		die "Please supply a file in either SAM or BAM format (ending with .sam or .bam). File name given was '$file'\n\n";
-    }
+    # else it is a BAM file, which is fine
 
     ### Paired-end
     if ($paired){
