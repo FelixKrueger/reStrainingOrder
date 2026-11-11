@@ -1,0 +1,50 @@
+
+      SYNOPSIS:
+
+	reStrainingOrder is designed to read in alignment files in BAM format and determine the genetic origin of reads
+	that cover known SNP positions. For this to work the alignment step must have been carried out against a multi-
+	strain mouse genome that had all SNP positions replaced by Ns (N-masking), in a process carried out by the 'reStraining'
+	genome preparation. A matrix of all relevant SNP positions on chromosome 1 also needs to be provided using the option
+	--snp_file.
+
+	For more information on the workflow and file formats, please see the User Guide documentation here:
+    	https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md
+
+
+      USAGE:      reStrainingOrder  [options] --snp_file MGMGPv8_SNP_matrix_chr1.txt.gz [input file(s)]
+
+
+    input file(s)          Mapping output file to the N-masked MGP genome in BAM format. 
+
+    --snp_file <file>      Mandatory matrix file specifying SNP positions to be considered on chromosome 1; may be a plain
+                           text file or gzip compressed. The SNP matrix is expected to be in the following format:
+
+                           Chromosome  Position   REF   ALT   [0 or 1 for each strain]
+
+                           Where 0 means REF base, and 1 means ALT base. Edit 23 March 2022: A matrix file generated with the 
+	                       v7 index file (see 'reStraining --help') is also acceptable.
+
+    
+    -o/--outdir <dir>      Write all output files into this directory. By default the output files will be written into
+                           the same folder as the input file(s). If the specified folder does not exist, it will be
+                           created first. The path to the output folder can be either relative or absolute.
+
+  
+    --bisulfite            Assumes Bisulfite-Seq data processed with Bismark (www.bioinformatics.babraham.ac.uk/projects/bismark/)
+                           as input. reStrainingOrder will run a quick check at the start of a run to see if the
+                           file provided appears to be a Bismark file, and set the flag --bisulfite automatically.
+
+    --samtools_path        The path to your Samtools installation, e.g. /home/user/samtools/. Does not need to
+                           be specified explicitly if Samtools is in the PATH already.
+
+    --verbose              Verbose output (for debugging).
+
+
+    --help                 Displays this help information and exits.
+
+    --version              Displays version information and exits.
+
+
+                                   Script last modified: 11 April 2023
+
+

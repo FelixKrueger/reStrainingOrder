@@ -1,0 +1,24 @@
+
+  SYNOPSIS:
+
+  This script uses one or more reStrainingOrder summary_stats.txt reports to generate a graphical HTML report page. If several
+  reStrainingOrder reports are found in the same folder, a separate report will be generated for each of these, whereby the output filename
+  will be derived from the original file.
+
+
+  USAGE: reStrainingReport [options]
+
+
+-o/--output <filename>     Name of the output file (optional). If not specified explicitly, the output filename(s) will be derived
+                           from the reStrainingOrder.summary_stats file(s). Specifying an output filename only works if the HTML
+                           report is to be generated for a single reStrainingOrder report.
+
+--dir                      Output directory (needs to exist). Output is written to the current directory if not specified explicitly.
+
+
+--summary_report FILE      If not specified explicitly, reStrainingReport attempts to find all reStrainingOrder summary_stats report file(s)
+                           in the current working directory and produces a separate HTML report for each file.
+
+
+                           Script last modified: 11 April 2023
+

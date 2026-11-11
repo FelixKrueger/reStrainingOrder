@@ -1,0 +1,9 @@
+SNP position summary for all MGP strains (based on mouse genome build GRCm39)
+===========================================================================
+
+Positions read in total:	162
+2	Positions were INDELs (and hence skipped)
+Positions skipped because the REF/ALT bases were not well defined:	3
+Positions discarded as no strain had a high confidence call:	32
+
+Positions printed to THE MATRIX in total:	124

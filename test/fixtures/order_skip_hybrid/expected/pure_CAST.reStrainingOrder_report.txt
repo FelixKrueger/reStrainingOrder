@@ -1,0 +1,30 @@
+Input file:						'pure_CAST.sam'
+Writing pure strain compatibility scores to:		'pure_CAST.reStrainingOrder.strain_scores.txt'
+Writing summary statistics file to:			'pure_CAST.reStrainingOrder.summary_stats.txt'
+
+
+Allele-tagging report
+=====================
+Processed 400 read alignments in total
+Reads were unaligned and hence skipped: 0 (0.00%)
+76 reads were unassignable (19.00%)
+150 reads were specific for genome 1 (37.50%)
+62 reads were specific for genome 2 (15.50%)
+2 reads did not contain one of the expected bases at known SNP positions (0.50%)
+112 contained conflicting allele-specific SNPs (28.00%)
+
+
+SNP coverage report
+===================
+SNP annotation file:	data/MGPv8_SNP_matrix_chr1.txt.gz
+SNPs stored in total:	124
+N-containing reads:	326
+non-N:			74
+total:			400
+Reads had a deletion of the N-masked position (and were thus dropped):	0 (0.00%)
+Of which had multiple deletions of N-masked positions within the same read:	0
+
+Of valid N containing reads,
+N was present in the list of known SNPs:	645 (98.77%)
+N was not present in the list of SNPs:		8 (1.23%)
+

@@ -1,0 +1,1 @@
+reStraining --vcf_file data/mgp_REL2021_snps.vcf.gz --reference_genome data/genome_chr1

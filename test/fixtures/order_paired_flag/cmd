@@ -1,0 +1,1 @@
+reStrainingOrder --paired --SNP_file data/MGPv8_SNP_matrix_chr1.txt.gz data/hybrid_DBA_PWK.bam

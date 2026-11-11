@@ -1,0 +1,7 @@
+
+
+0 positions on chromosome 2 were changed to 'N'
+0 positions on chromosome MT were changed to 'N'
+120 Ns were newly introduced into the N-masked genome for all current MGP strains in total
+120 positions on chromosome 1 were changed to 'N'
+Summary

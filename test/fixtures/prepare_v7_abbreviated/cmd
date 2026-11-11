@@ -1,0 +1,1 @@
+reStraining --vcf data/mgp_REL2005_snps_indels.vcf.gz --genome data/genome --v7

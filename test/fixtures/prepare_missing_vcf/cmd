@@ -1,0 +1,1 @@
+reStraining --vcf_file data/nope.vcf.gz --reference_genome data/genome

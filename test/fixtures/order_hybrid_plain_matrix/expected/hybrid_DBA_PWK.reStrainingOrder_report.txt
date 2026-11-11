@@ -1,0 +1,32 @@
+Input file:						'hybrid_DBA_PWK.sam'
+Writing pure strain compatibility scores to:		'hybrid_DBA_PWK.reStrainingOrder.strain_scores.txt'
+Writing possible hybrid compatibility scores to:	'hybrid_DBA_PWK.reStrainingOrder.hybrid_scores.txt'
+Writing hybrid allele ratio scores to:			'hybrid_DBA_PWK.reStrainingOrder.hybrid_ratios.txt'
+Writing summary statistics file to:			'hybrid_DBA_PWK.reStrainingOrder.summary_stats.txt'
+
+
+Allele-tagging report
+=====================
+Processed 611 read alignments in total
+Reads were unaligned and hence skipped: 1 (0.16%)
+119 reads were unassignable (19.48%)
+228 reads were specific for genome 1 (37.32%)
+89 reads were specific for genome 2 (14.57%)
+3 reads did not contain one of the expected bases at known SNP positions (0.49%)
+174 contained conflicting allele-specific SNPs (28.48%)
+
+
+SNP coverage report
+===================
+SNP annotation file:	data/MGPv8_SNP_matrix_chr1.txt
+SNPs stored in total:	124
+N-containing reads:	492
+non-N:			116
+total:			611
+Reads had a deletion of the N-masked position (and were thus dropped):	2 (0.33%)
+Of which had multiple deletions of N-masked positions within the same read:	1
+
+Of valid N containing reads,
+N was present in the list of known SNPs:	945 (95.36%)
+N was not present in the list of SNPs:		46 (4.64%)
+

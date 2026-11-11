@@ -1,0 +1,7 @@
+Strain	Positions covered	Agreeing GT	Disagreeing GT	agreement
+A_J	110	221	172	56.23
+PWK_PhJ	110	216	177	54.96
+CAST_EiJ	110	214	179	54.45
+DBA_2J	110	214	179	54.45
+129S1_SvImJ	110	209	184	53.18
+WSB_EiJ	110	393	0	100.00
