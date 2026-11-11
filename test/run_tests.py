@@ -231,14 +231,40 @@ def main():
     ap.add_argument("--impl", required=True, help="directory holding reStraining, reStrainingOrder and reStrainingReport")
     ap.add_argument("--record", action="store_true", help="rewrite expected/ from this implementation")
     ap.add_argument("--list", help="file naming the fixtures to run, one per line (default: all)")
+    ap.add_argument("--gate", help="fixture list the implementation must match exactly: listed fixtures must "
+                    "pass and every other fixture must fail, so the list cannot fall behind the code")
     ap.add_argument("--keep", action="store_true", help="keep work directories")
     ap.add_argument("fixtures", nargs="*")
     args = ap.parse_args()
 
+    def read_list(path):
+        with open(path) as fh:
+            return [line.split("#")[0].strip() for line in fh if line.split("#")[0].strip()]
+
     names = args.fixtures or sorted(os.listdir(FIXTURES))
     if args.list:
-        with open(args.list) as fh:
-            names = [line.split("#")[0].strip() for line in fh if line.split("#")[0].strip()]
+        names = read_list(args.list)
+    if args.gate:
+        listed = set(read_list(args.gate))
+        unknown = listed - set(os.listdir(FIXTURES))
+        if unknown:
+            print(f"gate lists fixtures that do not exist: {', '.join(sorted(unknown))}")
+            return 1
+        results = {name: run_fixture(name, args.impl, False, args.keep) for name in sorted(os.listdir(FIXTURES))}
+        wrong = []
+        for name, (ok, problems) in results.items():
+            if name in listed and not ok:
+                wrong.append(name)
+                print(f"FAIL {name} (listed, must pass)")
+                for p in problems:
+                    print("     " + p.replace("\n", "\n     "))
+            elif name not in listed and ok:
+                wrong.append(name)
+                print(f"FAIL {name} (passes but is not listed: add it to {args.gate})")
+            else:
+                print(f"ok   {name} ({'passes' if ok else 'fails, not listed'})")
+        print(f"\n{len(listed)} listed, {sum(ok for ok, _ in results.values())} passing, {len(wrong)} wrong")
+        return 1 if wrong else 0
 
     failed = []
     for name in names:

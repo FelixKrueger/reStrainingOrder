@@ -1,0 +1,19 @@
+[package]
+name = "restrainingorder"
+description = "Mouse strain identification from alignments to an N-masked multi-strain genome"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../README.md"
+keywords = ["bioinformatics", "genomics", "mouse", "snp", "strain"]
+categories = ["science", "command-line-utilities"]
+include = ["src/**/*", "banners/*", "help/*", "tests/**/*", "Cargo.toml"]
+
+[[bin]]
+name = "restrainingorder"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true

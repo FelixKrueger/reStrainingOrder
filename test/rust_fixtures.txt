@@ -1,0 +1,21 @@
+# Fixtures the Rust build must pass. Enforced in both directions by
+#   test/run_tests.py --impl rust/target/impl --gate test/rust_fixtures.txt
+# so a fixture that starts passing has to be added here, and one listed here cannot regress.
+
+order_help
+order_version
+prepare_help
+prepare_unknown_option
+prepare_version
+report_help
+report_version
+
+# These pass only because the tool is not ported yet and stops with an error, which is
+# what these fixtures expect for other reasons. They move to their tool's section when
+# that tool is ported.
+order_missing_input
+order_no_snp_file
+order_no_sorting_needs_bam
+prepare_chromosome_missing_from_genome
+prepare_missing_vcf
+prepare_no_vcf
