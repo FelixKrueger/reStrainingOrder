@@ -25,6 +25,16 @@ Most of reStrainingOrder is written in Perl and is executed from the command lin
 reStrainingOrder requires the following tools installed and ideally available in the `PATH`:
 - [Samtools](http://samtools.sourceforge.net/)
 
+#### Rust build (unreleased)
+
+A port of the three tools to Rust lives in [`rust/`](./rust/README.md): one binary, no Perl or Samtools needed, with the same command lines and the same output files. It is not released yet; to build it:
+
+```
+./rust/build-impl.sh
+```
+
+This puts `reStraining`, `reStrainingOrder` and `reStrainingReport` in `rust/target/impl/`. What is ported, how it is checked against the Perl, and where it differs are in [`rust/README.md`](./rust/README.md).
+
 
 ## Documentation
 The reStrainingOrder documentation can be found here: [reStrainingOrder User Guide](./Docs/README.md)

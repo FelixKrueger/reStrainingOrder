@@ -1,5 +1,10 @@
 # reStrainingOrder Changelog
 
+## Unreleased
+
+- Added a fixture suite (`test/`): synthetic data and 31 fixtures recording what the three Perl tools write, run by `test/run_tests.py` and in GitHub Actions.
+- Added a Rust port of all three tools (`rust/`), checked against the Perl by the same fixtures. See [`rust/README.md`](./rust/README.md) for its status and its differences from the Perl.
+
 ## Changelog for version 0.4.0 [release on 12 April 2023]
 
 Updated documentation to reflect the changes made by swtiching over to the `GRCm39` mouse genome, as well as the v8 annotation files. The v5 and v7 versions are probably no longer available for download, but we have left the option `--v7` in there for backward compatibility for the time being.
