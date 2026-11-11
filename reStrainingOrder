@@ -201,7 +201,7 @@ while (@ARGV){
     ###############################
 
     # Calling reStrainingReport now to generate an HTML report
-    system ("$RealBin/reStrainingReport");
+    system ("$RealBin/reStrainingReport", "--dir", $output_dir, "--summary_report", "${output_dir}$summary_stats_file");
 
    	warn "reStrainingOrder run complete...\n\n";
 }
@@ -213,7 +213,7 @@ sub collate_summary{
 
 	warn "\n\nFinishing up by collating all result files (writing to $summary_stats_file)...\n";
 
-	open (my $tmp,$outfile) or die $!;
+	open (my $tmp,"${output_dir}$outfile") or die "Failed to read ${output_dir}$outfile: $!\n";
 	print SUMMARY "STRAIN SCORES\n";
 	while (<$tmp>){
 		print SUMMARY;
@@ -223,7 +223,7 @@ sub collate_summary{
 	unless($skip_hybrid_detection){
 		print SUMMARY "\n";
 
-		open ($tmp,$pairwise_hybrid_file) or die $!;
+		open ($tmp,"${output_dir}$pairwise_hybrid_file") or die "Failed to read ${output_dir}$pairwise_hybrid_file: $!\n";
 		print SUMMARY "HYBRID SCORES\n";
 		while (<$tmp>){
 			print SUMMARY;
@@ -231,7 +231,7 @@ sub collate_summary{
 		close $tmp or warn $!;
 		print SUMMARY "\n";
 
-		open ($tmp,$hybrid_scores_file) or die $!;
+		open ($tmp,"${output_dir}$hybrid_scores_file") or die "Failed to read ${output_dir}$hybrid_scores_file: $!\n";
 		print SUMMARY "ALLELE RATIOS\n";
 		while (<$tmp>){
 			print SUMMARY;
