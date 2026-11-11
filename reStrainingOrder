@@ -30,7 +30,8 @@ my $pipeline_version = '0.4.0';
 my $parent_dir = getcwd;
 my @strains;
 my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
-my %snps; # storing SNP position and sequence information for all SNPs
+my %snps; # storing SNP position and sequence information for all SNPs: $snps{$chr}->{$pos} = "REF base\tALT base\tgenotype calls"
+my %counts; # $counts{$chr}->{$pos}->{REF|ALT|OTHER}: how many reads showed the REF, ALT or another base at a SNP position
 
 my $snp_found = 0;
 my $no_snp_found = 0;
@@ -39,6 +40,12 @@ my $count_SNPs_stored = 0;
 my %counting; # storing tallies of strain reads.
 my %strain_tallies;
 my %pairwise; # storing all pairwise comparisons
+# Both steps only add up the read counts of the covered SNP positions, split by the genotype calls of one or two
+# strains, so these sums are taken once (see sum_genotype_calls) rather than going over every position for every strain pair:
+my ($covered_positions,$uncovered_positions);
+my @total_counts;  # REF, ALT and OTHER counts of all covered positions
+my @strain_counts; # $strain_counts[$strain] the same, for the positions where that strain has the ALT genotype (1)
+my @pair_counts;   # $pair_counts[$strain1][$strain2] the same, for the positions where both strains have the ALT genotype
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
 
 # Checked before any output is opened: the output names are derived by replacing the extension,
@@ -136,6 +143,7 @@ while (@ARGV){
     #}
 
     process_masked_BAM_file($file);
+    sum_genotype_calls();
 
 	# STEP 1: Calculate single-strain compatibility
     calculate_single_strain_tallies();
@@ -259,9 +267,7 @@ sub process_masked_BAM_file{
     ($no_snp,$genome1,$genome2,$bizarre,$unassigned,$ct_snp,$unassigned_but_ct) = (0,0,0,0,0,0,0);
     # the SNP positions are kept for the next file, but what this file's reads said about them is not
     ($snp_found,$no_snp_found) = (0,0);
-    foreach my $chr (keys %snps){
-		delete @{$_}{qw(REF ALT OTHER)} foreach (values %{$snps{$chr}});
-    }
+    %counts = ();
     my $count = 0;
 
     my $count_N_containing = 0;
@@ -567,8 +573,9 @@ sub score_snp_position{
 	### seeing if the SNP is present in the SNP position list
 	if (exists $snps{$chr}->{$genomic_pos}){
 		++$snp_found;
+		my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
 		# warn "SNP existed!\n";sleep(1);
-		if ($verbose) { warn "SNP was present: ref: $snps{$chr}->{$genomic_pos}->{ref}\tsnp: $snps{$chr}->{$genomic_pos}->{snp}\n";}
+		if ($verbose) { warn "SNP was present: ref: $ref_base\tsnp: $snp_base\n";}
 		if ($verbose) { warn "base in read was: $read_base\n";}
 
 		if ($bisulfite){
@@ -588,28 +595,28 @@ sub score_snp_position{
 			#	}
 			# print "CHR: $chr\tPOS: $genomic_pos\n"; sleep(1);
 				
-			if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
+			if ($read_base eq $ref_base){
 				if ($verbose) { warn "genome 1 specific SNP!\n";}
 				++$genome1;
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 				# $counting{'C57BL6'}++;
 				# print "$snps{$chr}->{$genomic_pos}->{strain}";
 				# print "Stats are: STRAIN: $snps{$chr}->{$genomic_pos}->{strain}\tCHR: $chr\tPOS: $genomic pos\n"; sleep(1);
 				# ${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{no}}++;
 			}
-			elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+			elsif ($read_base eq $snp_base){
 				if ($verbose) { warn "genome 2 specific SNP!\n";}
 				### This is when we know that this has to be a certain strain
 				# warn "$snps{$chr}->{$genomic_pos}->{strain}\nWhat does this incrementer do?: >>$counting{$snps{$chr}->{$genomic_pos}->{strain}}<<\n\n";
 				# $counting{$snps{$chr}->{$genomic_pos}->{strain}}++;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 				#${strain_tallies{$snps{$chr}->{$genomic_pos}->{strain}}->{$chr}->{$genomic_pos}->{yes}}++;
 				++$genome2;
 			}
 			else{
 				if ($verbose) { warn "The base was different to both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 			}
 		}
 	}
@@ -683,6 +690,7 @@ sub locate_md_offset{
 sub score_bisulfite_SNPs{
    
     my ($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned) = @_;
+    my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
     my $first_read_conversion;
     my $genome_conversion;
     # warn "$line\n"; sleep(1);
@@ -722,13 +730,13 @@ sub score_bisulfite_SNPs{
 
     ### if the SNP in question involves a genomic C position we potentially need to allow both C or T as C (G/A for the reverse strand)
 
-    if ($verbose){ warn "Reference base is $snps{$chr}->{$genomic_pos}->{ref}\tSNP base:\t$snps{$chr}->{$genomic_pos}->{snp}\tRead base:\t$read_base\n"; sleep(1);}
+    if ($verbose){ warn "Reference base is $ref_base\tSNP base:\t$snp_base\tRead base:\t$read_base\n"; sleep(1);}
 
     ### REFERENCE STRAIN = C
-    if ( $snps{$chr}->{$genomic_pos}->{ref} eq 'C'){    # the position is a C in the reference genome
+    if ( $ref_base eq 'C'){    # the position is a C in the reference genome
 
 		### C>T SNP. Can't use the position for top strand alignments
-		if ($snps{$chr}->{$genomic_pos}->{snp} eq 'T'){
+		if ($snp_base eq 'T'){
 
 			if ($strand eq 'OT' or $strand eq 'CTOT'){
 				if ($verbose){ warn "This is a C>T SNP and can't be considered for OT or CTOT alignments!\n";}
@@ -745,49 +753,49 @@ sub score_bisulfite_SNPs{
 			if ($read_base eq 'C' or $read_base eq 'T'){ # a bisulfite converted position may be a C or T (here we know that the ref base is C)
 				if ($verbose){ warn "genome 1 specific!\n";}
 				++$genome1;
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 			}
-			elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+			elsif($read_base eq $snp_base){
 				if ($verbose){ warn "genome 2 specific!\n";}
 				++$genome2;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 			}
 			else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 			}
 
 		}
 		# Alignments to the bottom strand can still be assigned normally as they do not involve the C directly
 		elsif ($strand eq 'OB' or $strand eq 'CTOB'){
 
-			if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # == C
+			if ($read_base eq $ref_base){ # == C
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 				++$genome1;
 			}
 			# added this section 13 June 2017
-			elsif ($snps{$chr}->{$genomic_pos}->{snp} eq 'G'){ # a bisulfite converted position on the bottom strand may be a G or A
+			elsif ($snp_base eq 'G'){ # a bisulfite converted position on the bottom strand may be a G or A
 				if ($read_base eq 'G' or $read_base eq 'A'){
 					if ($verbose){ warn "genome 2 specific!\n";}
 					++$genome2;
-					$snps{$chr}->{$genomic_pos}->{ALT}++;
+					$counts{$chr}->{$genomic_pos}->{ALT}++;
 				}
 				else{
 					if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 					++$irrelevant;
-					$snps{$chr}->{$genomic_pos}->{OTHER}++;
+					$counts{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 			}
-			elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # only A left...
+			elsif($read_base eq $snp_base){ # only A left...
 				if ($verbose){ warn "genome 2 specific!\n";}
 				++$genome2;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 			}
 			else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 				++$irrelevant;
 			}
 		}
@@ -797,10 +805,10 @@ sub score_bisulfite_SNPs{
     }
 
     ### AlTERNATIVE STRAIN = C
-    elsif ( $snps{$chr}->{$genomic_pos}->{snp} eq 'C'){ # the position is a C in the alternative/SNP genome
+    elsif ( $snp_base eq 'C'){ # the position is a C in the alternative/SNP genome
 
 		### C>T SNP. Can't use the position for top strand alignments
-		if ($snps{$chr}->{$genomic_pos}->{ref} eq 'T'){
+		if ($ref_base eq 'T'){
 
 		    if ($strand eq 'OT' or $strand eq 'CTOT'){
 				if ($verbose){ warn "This is a C>T SNP between alternative and reference and can't be considered for OT or CTOT alignments!\n";}
@@ -816,52 +824,52 @@ sub score_bisulfite_SNPs{
 
 		    if ($read_base eq 'C' or $read_base eq 'T'){ # a bisulfite converted position may be a C or T
 				if ($verbose){ warn "genome 2 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
-				# warn "Alternative base is C\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
+				# warn "Alternative base is C\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome2;
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
+		    elsif($read_base eq $ref_base){
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 				++$genome1;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		elsif ($strand eq 'OB' or $strand eq 'CTOB'){ # Reads to the bottom strand can still be assigned normally
 
-		    if ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # has to be C
+		    if ($read_base eq $snp_base){ # has to be C
 				if ($verbose){ warn "genome 2 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
-				# warn "Alternative base is C\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
+				# warn "Alternative base is C\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome2;
 		    }
 
 		    # added this section 13 June 2017
-		    elsif ($snps{$chr}->{$genomic_pos}->{ref} eq 'G'){ # a bisulfite converted position on the bottom strand may be a G or A
+		    elsif ($ref_base eq 'G'){ # a bisulfite converted position on the bottom strand may be a G or A
 				if ($read_base eq 'G' or $read_base eq 'A'){
 				    if ($verbose){ warn "genome 1 specific!\n";}
-				    $snps{$chr}->{$genomic_pos}->{REF}++;
+				    $counts{$chr}->{$genomic_pos}->{REF}++;
 				    ++$genome1;
 				}
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
-					$snps{$chr}->{$genomic_pos}->{OTHER}++;
+					$counts{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # only A left...
+		    elsif($read_base eq $ref_base){ # only A left...
 				if ($verbose){ warn "genome 1 specific!\n";}
 				++$genome1;
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		else{
@@ -869,9 +877,9 @@ sub score_bisulfite_SNPs{
 		}
     }
     ### REFERENCE STRAIN = G, i.e. bottom strand C might be affected
-    elsif ( $snps{$chr}->{$genomic_pos}->{ref} eq 'G'){    # the position is a G in the reference genome
+    elsif ( $ref_base eq 'G'){    # the position is a G in the reference genome
 
-		if ($snps{$chr}->{$genomic_pos}->{snp} eq 'A'){
+		if ($snp_base eq 'A'){
 
 		    if ($strand eq 'OB' or $strand eq 'CTOB'){
 				if ($verbose){ warn "This is a G>A SNP and can't be considered for OB or CTOB alignments!\n";}
@@ -884,34 +892,34 @@ sub score_bisulfite_SNPs{
 		# Bottom strand alignments with G>A SNPs should have been skipped already
 		if ($strand eq 'OT' or $strand eq 'CTOT'){  # Reads to the top strand can be assigned normally
 
-		    if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # eq G
+		    if ($read_base eq $ref_base){ # eq G
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
-				# warn "Reference base is G\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				$counts{$chr}->{$genomic_pos}->{REF}++;
+				# warn "Reference base is G\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome1;
 		    }
 		    # added this section 13 June 2017
-		    elsif ($snps{$chr}->{$genomic_pos}->{snp} eq 'C'){ # a bisulfite converted position on the bottom strand may be a G or A
+		    elsif ($snp_base eq 'C'){ # a bisulfite converted position on the bottom strand may be a G or A
 				if ($read_base eq 'C' or $read_base eq 'T'){
 				    if ($verbose){ warn "genome 2 specific!\n";}
-				    $snps{$chr}->{$genomic_pos}->{ALT}++;
+				    $counts{$chr}->{$genomic_pos}->{ALT}++;
 				    ++$genome2;
 				}
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
-				    $snps{$chr}->{$genomic_pos}->{OTHER}++;
+				    $counts{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # has to be T
+		    elsif($read_base eq $snp_base){ # has to be T
 				if ($verbose){ warn "genome 2 specific!\n";}
 				++$genome2;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 
 		}
@@ -919,19 +927,19 @@ sub score_bisulfite_SNPs{
 
 		    if ($read_base eq 'G' or $read_base eq 'A'){ # a bisulfite converted position may be a G or A
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
-				# warn "Reference base is G\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				$counts{$chr}->{$genomic_pos}->{REF}++;
+				# warn "Reference base is G\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome1;
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+		    elsif($read_base eq $snp_base){
 				if ($verbose){ warn "genome 2 specific!\n";}
 				++$genome2;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 
 		}
@@ -941,9 +949,9 @@ sub score_bisulfite_SNPs{
 
     }
     ### AlTERNATIVE STRAIN = G, i.e. bottom strand C might be affected
-    elsif ( $snps{$chr}->{$genomic_pos}->{snp} eq 'G'){ # the position is a G in the alternative/SNP genome
+    elsif ( $snp_base eq 'G'){ # the position is a G in the alternative/SNP genome
 
-		if ($snps{$chr}->{$genomic_pos}->{ref} eq 'A'){
+		if ($ref_base eq 'A'){
 
 		    if ($strand eq 'OB' or $strand eq 'CTOB'){
 				if ($verbose){ warn "This is a G>A SNP between alternative and reference genome and can't be considered for OB or CTOB alignments!\n"; }
@@ -957,53 +965,53 @@ sub score_bisulfite_SNPs{
 		# Bottom strand alignments with G>A SNPs should have been skipped already
 		if ($strand eq 'OT' or $strand eq 'CTOT'){  # Reads to the top strand can be assigned normally
 
-		    if ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){ # has to be G
+		    if ($read_base eq $snp_base){ # has to be G
 				if ($verbose){ warn "genome 2 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
-				# warn "Alternative base is G\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
+				# warn "Alternative base is G\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome2;
 		    }
 		    # added this section 13 June 2017
-		    elsif ($snps{$chr}->{$genomic_pos}->{ref} eq 'C'){ # a bisulfite converted position on the bottom strand may be a G or A
+		    elsif ($ref_base eq 'C'){ # a bisulfite converted position on the bottom strand may be a G or A
 				if ($read_base eq 'C' or $read_base eq 'T'){
 				    if ($verbose){ warn "genome 1 specific!\n";}
 				    ++$genome1;
-				    $snps{$chr}->{$genomic_pos}->{REF}++;
+				    $counts{$chr}->{$genomic_pos}->{REF}++;
 				}
 				else{
 				    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				    ++$irrelevant;
-				    $snps{$chr}->{$genomic_pos}->{OTHER}++;
+				    $counts{$chr}->{$genomic_pos}->{OTHER}++;
 				}
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){ # has to be T
+		    elsif($read_base eq $ref_base){ # has to be T
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 				++$genome1;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		elsif ($strand eq 'OB' or $strand eq 'CTOB'){ # Reads to the bottom strand might carry a bisulfite conversion
 
 		    if ($read_base eq 'G' or $read_base eq 'A'){ # a bisulfite converted position may be a G or A
 				if ($verbose){ warn "genome 2 specific!\n";}
-				# warn "Alternative base is G\nGenomic base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
+				# warn "Alternative base is G\nGenomic base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
 				++$genome2;
-				$snps{$chr}->{$genomic_pos}->{ALT}++;
+				$counts{$chr}->{$genomic_pos}->{ALT}++;
 		    }
-		    elsif($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
+		    elsif($read_base eq $ref_base){
 				if ($verbose){ warn "genome 1 specific!\n";}
-				$snps{$chr}->{$genomic_pos}->{REF}++;
+				$counts{$chr}->{$genomic_pos}->{REF}++;
 				++$genome1;
 		    }
 		    else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
-				$snps{$chr}->{$genomic_pos}->{OTHER}++;
+				$counts{$chr}->{$genomic_pos}->{OTHER}++;
 		    }
 		}
 		else{
@@ -1013,21 +1021,21 @@ sub score_bisulfite_SNPs{
 
     ### The SNP did not affect a C or G position at all
     else{
-		# warn "they do exist! Ref base:\t$snps{$chr}->{$genomic_pos}->{ref}\tRead base:\t$read_base\n"; sleep(1);
-		if ($read_base eq $snps{$chr}->{$genomic_pos}->{ref}){
+		# warn "they do exist! Ref base:\t$ref_base\tRead base:\t$read_base\n"; sleep(1);
+		if ($read_base eq $ref_base){
 		    if ($verbose){ warn "genome 1 specific!\n";}
 		    ++$genome1;
-		    $snps{$chr}->{$genomic_pos}->{REF}++;
+		    $counts{$chr}->{$genomic_pos}->{REF}++;
 		}
-		elsif ($read_base eq $snps{$chr}->{$genomic_pos}->{snp}){
+		elsif ($read_base eq $snp_base){
 		    if ($verbose){ warn "genome 2 specific!\n";}
 		    ++$genome2;
-		    $snps{$chr}->{$genomic_pos}->{ALT}++;
+		    $counts{$chr}->{$genomic_pos}->{ALT}++;
 		}
 		else{
 		    if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 		    ++$irrelevant;
-		    $snps{$chr}->{$genomic_pos}->{OTHER}++;
+		    $counts{$chr}->{$genomic_pos}->{OTHER}++;
 		}
     }
 
@@ -1099,15 +1107,16 @@ sub read_snps{
 		chomp;
 		++$snp_count;
 		$_ =~ s/\r|\n//g; # removing CR and LF line endings
-		my ($chr,$pos,$ref,$snp,@calls)  = (split /\t/);
+		my ($chr,$pos,$ref,$snp,$calls)  = (split /\t/,$_,5);
+		$calls =~ tr/\t//d; # one character per strain: a string costs a fraction of the memory of an array
+		die "Expected one 0/1 genotype call per strain in line $snp_count of the SNP file\n" if ($calls =~ /[^01]/ or length $calls != @strains);
 		# print "$chr\t$pos\t$ref\t$snp\n"; sleep(1);
 
 		# last if ($snp_count == $stopat);
 	
 		### for N-masked genomes the SNPs are stored in an. hashes
-		$snps{$chr}->{$pos}->{ref} = $ref;
-		$snps{$chr}->{$pos}->{snp} = $snp;
-		@{$snps{$chr}->{$pos}->{calls}} = @calls;
+		# one string per position rather than a hash: there are millions of them
+		$snps{$chr}->{$pos} = "$ref\t$snp\t$calls";
 		# print "@calls\n";
 		# unless (exists $counting{$strain}){
 		#	$counting{$strain} = 0;
@@ -1183,8 +1192,7 @@ sub read_snps_bisulfite{
 	++$snp_count;
 
 	### for N-masked genomes the SNPs are stored in an. hashes
-	$snps{$chr}->{$pos}->{ref} = $ref;
-	$snps{$chr}->{$pos}->{snp} = $snp;
+	$snps{$chr}->{$pos} = "$ref\t$snp";
     }
 
     my $perc_CT = sprintf("%.2f",$ct_snp/$total *100);
@@ -1401,304 +1409,59 @@ sub test_positional_sorting{
 
 sub calculate_single_strain_tallies{
 
-	my $processed = 0;
 	%strain_tallies = (); # from this file only
 	warn "STAGE I: Calculating strain tallies to determine agreement percentage\n=====================================================================\n\n";
-	foreach my $chr(keys %snps){
-		foreach my $pos(keys %{$snps{$chr}} ){
-
-			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
-				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-				foreach my $index (0..$#{$snps{$chr}->{$pos}->{calls} }){
-					
-					# Number of different positions that were covered by any reads at all
-					$strain_tallies{$strains[$index]}->{positions_covered}++;
-					#$strain_tallies{'Black6'}->{positions_covered}++;
-					# warn "$chr\t$pos\t$index\t'$strains[$index]'\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-					# warn "$chr\t$pos\t$index\t$strains[$index]\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\t$snps{$chr}->{$pos}->{calls}[$index]\n"; sleep(1);
-					#warn "Pos: $pos\tGenotype call was: $snps{$chr}->{$pos}->{calls}[$index]\tStrain: $strains[$index]\n";
-					if ($snps{$chr}->{$pos}->{calls}[$index] == 0){
-						
-						# warn "Sequence looked like the reference\n";
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							# warn "Adding $snps{$chr}->{$pos}->{REF} to AGREE\n";
-							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{REF};
-							# Black 6 has by definition a GT of 0
-							#$strain_tallies{'Black6'}->{agree} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							# warn "Adding $snps{$chr}->{$pos}->{ALT} to DISAGREE\n";
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{ALT};
-							# Black 6 has by definition a GT of 0
-							#$strain_tallies{'Black6'}->{disagree} += $snps{$chr}->{$pos}->{ALT};
-						}		
-						if (defined $snps{$chr}->{$pos}->{OTHER}){
-							# Bases other than ALT or REF disagree by definition
-							# warn "Adding $snps{$chr}->{$pos}->{OTHER} to DISAGREE\n"; sleep(1);
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{OTHER};				
-						}
-					}
-					elsif($snps{$chr}->{$pos}->{calls}[$index] == 1){
-						# warn "Sequence looked like the ALT base\n";
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							# warn "Adding $snps{$chr}->{$pos}->{REF} to DISAGREE\n";
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							# warn "Adding $snps{$chr}->{$pos}->{ALT} to AGREE\n";
-							$strain_tallies{$strains[$index]}->{agree} += $snps{$chr}->{$pos}->{ALT};
-						}
-						if (defined $snps{$chr}->{$pos}->{OTHER}){
-							# Bases other than ALT or REF disagree by definition
-							# warn "Adding $snps{$chr}->{$pos}->{OTHER} to DISAGREE\n"; sleep(1);
-							$strain_tallies{$strains[$index]}->{disagree} += $snps{$chr}->{$pos}->{OTHER};				
-						}
-					}
-					else{
-						die "This should never happen!";						
-					}
-					# sleep(1);
-				}
-				 $processed++;
-				 # warn "~~~~~\n";
-				 #sleep(1);
-				 #last if ($processed == 1000);
-			}
-			else{
-				# warn "Position was not covered at all\n";		
-			}	
-		}		
+	return unless ($covered_positions);
+	foreach my $index (0..$#strains){
+		my ($ref1,$alt1) = @{$strain_counts[$index]};                       # positions where the strain looks like the ALT base
+		my ($ref0,$alt0) = ($total_counts[0]-$ref1,$total_counts[1]-$alt1); # and where it looks like the reference
+		$strain_tallies{$strains[$index]}->{positions_covered} = $covered_positions;
+		$strain_tallies{$strains[$index]}->{agree}    = $ref0 + $alt1;
+		# Bases other than ALT or REF disagree by definition
+		$strain_tallies{$strains[$index]}->{disagree} = $alt0 + $ref1 + $total_counts[2];
 	}
 }
 
-sub calculate_pairwise_comparisons{
-	my ($combo,$strain1_index,$strain2_index) = @_;
-	# currently testing this with B6 CAST
-	#my ($strain1_index,$strain2_index) = (10,15); 
-	
-	my $processed = 0;
-	my $not_covered = 0;
-	my $informative = 0;
-	my $not_informative = 0;
-
-	my %hybrid_agreement;
-	$hybrid_agreement{0}->{name} = $strains[$strain1_index];
-	$hybrid_agreement{1}->{name} = $strains[$strain2_index];
-
-	my $yes = 0;
-	my $no = 0;
-
-	warn "Calculating hybrid strain agreement ratio for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
-	foreach my $chr(keys %snps){
-		foreach my $pos(keys %{$snps{$chr}} ){
-
-			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-
-			# Number of different positions that were covered by any reads at all
-			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
-				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-				# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
-				# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
-				# sleep(1);
-			
-				# The position agrees with a hybrid potential hybrid if both positions only interesting if the 2 strains have a different genotype here					
-				if ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0) ){
-					# warn "Pure 0/0\n";
-					if (defined $snps{$chr}->{$pos}->{REF}){
-						$yes += $snps{$chr}->{$pos}->{REF};
-					}
-					if (defined $snps{$chr}->{$pos}->{ALT}){
-						$no  += $snps{$chr}->{$pos}->{ALT};
-					}
-					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-						$no  += $snps{$chr}->{$pos}->{OTHER};;
-					}
-				}
-				elsif ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1) ){
-					# warn "Pure 1/1\n";
-					if (defined $snps{$chr}->{$pos}->{REF}){
-						$no  += $snps{$chr}->{$pos}->{REF};
-					}
-					if (defined $snps{$chr}->{$pos}->{ALT}){
-						$yes += $snps{$chr}->{$pos}->{ALT};
-					}
-					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-						$no  += $snps{$chr}->{$pos}->{OTHER};;
-					}
-				}
-				elsif ( (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1)) 
-				or (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0)) ){
-					#warn "Mix\n";
-					if (defined $snps{$chr}->{$pos}->{REF}){
-						$yes += $snps{$chr}->{$pos}->{REF};
-					}
-					if (defined $snps{$chr}->{$pos}->{ALT}){
-						$yes += $snps{$chr}->{$pos}->{ALT};
-					}
-					if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-						$no  += $snps{$chr}->{$pos}->{OTHER};;
-					}
-				}
-				else{
-					die "We require to have one of the above combinations!";					
-				}
-					
-				$processed++;
-				# sleep(1);
-			}
-			else{
-				++$not_covered; 	# warn "Position was not covered at all\n";		
-			}	
-		}	
-	
+# Adds up the REF, ALT and OTHER counts of the covered positions for the totals, every strain and every strain pair (see @total_counts)
+sub sum_genotype_calls{
+	my %patterns; # genotype calls => [REF, ALT, OTHER]; positions with the same calls only need adding up once
+	($covered_positions,$uncovered_positions) = (0,0);
+	foreach my $chr (keys %snps){
+		$uncovered_positions += keys %{$snps{$chr}};
+		foreach my $pos (keys %{$counts{$chr}}){
+			my $position = $counts{$chr}->{$pos};
+			my $calls = (split (/\t/,$snps{$chr}->{$pos}))[2];
+			my $sums = $patterns{$calls} //= [0,0,0];
+			$sums->[0] += $position->{REF}   // 0;
+			$sums->[1] += $position->{ALT}   // 0;
+			$sums->[2] += $position->{OTHER} // 0;
+			++$covered_positions;
+		}
 	}
-	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{0}->{name} hybrid strain candidate stats\n=====================================================\n";
-	warn "SNP positions were covered:\t\t$processed\n";	
-	warn "Positions were not covered:\t\t$not_covered\n\n";
-	
-	my $percent_agreement;
-	
-	if ( ($yes + $no) > 0){
-		$percent_agreement = sprintf("%.2f",$yes / ($yes + $no) *100);
+	$uncovered_positions -= $covered_positions;
+	warn scalar keys %patterns," genotype patterns among the $covered_positions covered positions\n";
+
+	@total_counts = (0,0,0);
+	@strain_counts = map { [0,0,0] } @strains;
+	@pair_counts = map { [map { [0,0,0] } @strains] } @strains;
+	foreach my $sums (values %patterns){
+		$total_counts[$_] += $sums->[$_] foreach (0..2);
 	}
-	else{
-		$percent_agreement = 'NA ';
-	}
-	warn "Potential Hybrid\tAgreeing\tNot agreeing\tPercentage agreement\n";
-	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}\t$yes\t$no\t$percent_agreement\n";
-	$pairwise{$combo}->{hybrid} = "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name}";
-	$pairwise{$combo}->{yes} = $yes;
-	$pairwise{$combo}->{no} = $no;
-	$pairwise{$combo}->{percentage} = $percent_agreement;
-	$pairwise{$combo}->{strain1_index} = $strain1_index;
-	$pairwise{$combo}->{strain2_index} = $strain2_index;
-
-}
-
-sub allele_ratios{
-	my ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,%hybrid_identity) = @_;
-	
-	# Number of different positions that were covered by any reads at all
-	if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
-		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-		# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
-		# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
-		# sleep(1);
-		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-		
-		# The position is only interesting if the 2 strains have a different genotype here					
-		if ( $snps{$chr}->{$pos}->{calls}[$strain1_index] ne $snps{$chr}->{$pos}->{calls}[$strain2_index] ){
-
-			++$informative;
-
-			# strain 1 looks like the reference
-			if ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0){
-				# warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
-				# warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
-				
-				if (defined $snps{$chr}->{$pos}->{REF}){
-					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
-				}
-				if (defined $snps{$chr}->{$pos}->{ALT}){
-					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
-				}
-
-			}
-			elsif($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0){
-				# warn "Strain 2 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
-				# warn "Strain 1 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
-
-				if (defined $snps{$chr}->{$pos}->{REF}){
-					$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{REF};
-				}
-				if (defined $snps{$chr}->{$pos}->{ALT}){
-					$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{ALT};
-				}
-
-			}
-			else{
-				die "Either strain 1 or strain 2 should look like the reference!\n";
+	foreach my $calls (keys %patterns){
+		my ($ref,$alt,$other) = @{$patterns{$calls}};
+		my @alt_strains;
+		push @alt_strains, pos ($calls) - 1 while ($calls =~ /1/g);
+		foreach my $i (0..$#alt_strains){
+			my $strain1 = $alt_strains[$i];
+			my $sums = $strain_counts[$strain1];
+			$sums->[0] += $ref; $sums->[1] += $alt; $sums->[2] += $other;
+			my $pairs = $pair_counts[$strain1];
+			foreach my $strain2 (@alt_strains[$i+1..$#alt_strains]){
+				$sums = $pairs->[$strain2];
+				$sums->[0] += $ref; $sums->[1] += $alt; $sums->[2] += $other;
 			}
 		}
-		else{
-			# position is not informative
-			# warn "Boring, the two strains have the same genotype at this position!\n";
-			++$not_informative;
-		}
-			
-		$processed++;
-	
 	}
-	else{
-		++$not_covered;
-		# warn "Position was not covered at all\n";		
-	}
-	return($processed,$not_covered,$informative,$not_informative);
-
-}
-
-sub pairwise_comparison{
-	my ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no) = @_;
-	# warn "Getting: $chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no\n";			
-		
-	# Number of different positions that were covered by any reads at all
-	if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
-		# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-		# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
-		# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
-		# sleep(1);
-	
-		# The position agrees with a hybrid potential hybrid if both positions only interesting if the 2 strains have a different genotype here					
-		if ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0) ){
-			# warn "Pure 0/0\n";
-			if (defined $snps{$chr}->{$pos}->{REF}){
-				$yes += $snps{$chr}->{$pos}->{REF};
-			}
-			if (defined $snps{$chr}->{$pos}->{ALT}){
-				$no  += $snps{$chr}->{$pos}->{ALT};
-			}
-			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-				$no  += $snps{$chr}->{$pos}->{OTHER};;
-			}
-		}
-		elsif ( ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1) ){
-			# warn "Pure 1/1\n";
-			if (defined $snps{$chr}->{$pos}->{REF}){
-				$no  += $snps{$chr}->{$pos}->{REF};
-			}
-			if (defined $snps{$chr}->{$pos}->{ALT}){
-				$yes += $snps{$chr}->{$pos}->{ALT};
-			}
-			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-				$no  += $snps{$chr}->{$pos}->{OTHER};;
-			}
-		}
-		elsif ( (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 1)) 
-		or (($snps{$chr}->{$pos}->{calls}[$strain1_index] == 1) and ($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0)) ){
-			#warn "Mix\n";
-			if (defined $snps{$chr}->{$pos}->{REF}){
-				$yes += $snps{$chr}->{$pos}->{REF};
-			}
-			if (defined $snps{$chr}->{$pos}->{ALT}){
-				$yes += $snps{$chr}->{$pos}->{ALT};
-			}
-			if (defined $snps{$chr}->{$pos}->{OTHER}){ # always disagree
-				$no  += $snps{$chr}->{$pos}->{OTHER};;
-			}
-		}
-		else{
-			die "We require to have one of the above combinations!";					
-		}
-			
-		$processed++;
-		# sleep(1);
-	}
-	else{
-		++$not_covered; 	# warn "Position was not covered at all\n";		
-	}	
-	# warn "Passing on: $processed,$not_covered,$informative,$not_informative,$yes,$no\n";
-	return($processed,$not_covered,$informative,$not_informative,$yes,$no);
 }
 
 sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
@@ -1720,11 +1483,6 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	my $yes = 0;
 	my $no = 0;
 
-	### Allele Ratio Agreement
-	my $processed_allele_ratios = 0;
-	my $not_covered_allele_ratios = 0;
-	my $informative_allele_ratios = 0;
-	my $not_informative_allele_ratios = 0;
 
 	my %hybrid_identity;
 	$hybrid_identity{0}->{name} = $strains[$strain1_index];
@@ -1732,26 +1490,24 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 
 	warn "Calculating hybrid strain agreement ratio for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n";
 	warn "Calculating strain ratios for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
-	foreach my $chr(keys %snps){
-		# warn "Processing positions of chromosome >>$chr<<\n";
-		foreach my $pos(keys %{$snps{$chr}} ){
+	# The REF, ALT and OTHER counts of the positions where strain 1 and strain 2 have the genotypes 0/0, 1/1, 0/1 and 1/0
+	my @both_alt = @{$pair_counts[$strain1_index][$strain2_index]};
+	my @only1 = map { $strain_counts[$strain1_index][$_] - $both_alt[$_] } 0..2;
+	my @only2 = map { $strain_counts[$strain2_index][$_] - $both_alt[$_] } 0..2;
+	my @both_ref = map { $total_counts[$_] - $only1[$_] - $only2[$_] - $both_alt[$_] } 0..2;
+	my @differ = map { $only1[$_] + $only2[$_] } 0..2;
 
+	# Hybrid agreement: does the base fit a hybrid of strain 1 and strain 2? Other bases never do
+	$yes = $both_ref[0] + $both_alt[1] + $differ[0] + $differ[1];
+	$no  = $both_ref[1] + $both_ref[2] + $both_alt[0] + $both_alt[2] + $differ[2];
+	$processed = $covered_positions;
+	$not_covered = $uncovered_positions;
 
-			# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{ref}\t$snps{$chr}->{$pos}->{snp}\n";
-			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n";sleep(1);
-			
-			# Calculate hybrid agreement
-			($processed,$not_covered,$informative,$not_informative,$yes,$no) =
-			 	pairwise_comparison ($chr,$pos,$strain1_index,$strain2_index,$processed,$not_covered,$informative,$not_informative,$yes,$no);			
-			# Calculate allele ratios 
-			# warn "Passing on: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n";
-			($processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios) =
-				allele_ratios($chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios,%hybrid_identity);
-			# warn "Getting back: $chr,$pos,$strain1_index,$strain2_index,$processed_allele_ratios,$not_covered_allele_ratios,$informative_allele_ratios,$not_informative_allele_ratios\n"; sleep(1);
-			
-		}	
-		# warn "Reached end of chromosome >>$chr<<\n"; # As we are only storing chromosome 1, there should never be another chromosome
-	}
+	# Allele ratios: only positions where the two strains differ tell them apart
+	my $count1 = $only2[0] + $only1[1];
+	my $count2 = $only1[0] + $only2[1];
+	$hybrid_identity{0}->{count} = $count1;
+	$hybrid_identity{1}->{count} = $count2;
 	warn "$hybrid_agreement{0}->{name}/$hybrid_agreement{1}->{name} hybrid strain candidate stats\n=====================================================\n";
 	warn "SNP positions were covered:\t\t$processed\n";	
 	warn "Positions were not covered:\t\t$not_covered\n\n";
@@ -1815,115 +1571,6 @@ sub calculate_pairwise_comparisons_and_hybrid_strain_ratios{
 	# warn "OLD:\n$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
 	# print RATIOS "$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
 
-}
-
-sub calculate_hybrid_strain_ratios{
-
-	my ($strain1_index,$strain2_index) = @_;
-	# currently testing this with B6 CAST
-	# my ($strain1_index,$strain2_index) = (10,15); 
-	die "Shouldn't be used anymore";
-	my $processed = 0;
-	my $not_covered = 0;
-	my $informative = 0;
-	my $not_informative = 0;
-
-	my %hybrid_identity;
-	$hybrid_identity{0}->{name} = $strains[$strain1_index];
-	$hybrid_identity{1}->{name} = $strains[$strain2_index];
-
-
-	warn "Calculating strain ratios for Strain1: >$strains[$strain1_index]< and Strain2: >$strains[$strain2_index]<\n\n";
-	foreach my $chr(keys %snps){
-		foreach my $pos(keys %{$snps{$chr}} ){
-
-			#warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-			# Number of different positions that were covered by any reads at all
-			if (defined $snps{$chr}->{$pos}->{REF} or defined $snps{$chr}->{$pos}->{ALT} or defined $snps{$chr}->{$pos}->{OTHER}){
-				# warn "$chr\t$pos\t$snps{$chr}->{$pos}->{REF}\t$snps{$chr}->{$pos}->{ALT}\n"; sleep(1);
-				# warn "Call for $strains[$strain1_index]: ",$snps{$chr}->{$pos}->{calls}[$strain1_index],"\n";
-				# warn "Call for $strains[$strain2_index]: ",$snps{$chr}->{$pos}->{calls}[$strain2_index],"\n";
-				# sleep(1);
-
-				# The position is only interesting if the 2 strains have a different genotype here					
-				if ( $snps{$chr}->{$pos}->{calls}[$strain1_index] ne $snps{$chr}->{$pos}->{calls}[$strain2_index] ){
-
-					++$informative;
-
-					# strain 1 looks like the reference
-					if ($snps{$chr}->{$pos}->{calls}[$strain1_index] == 0){
-						#warn "Strain 1 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
-						#warn "Strain 2 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
-						
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
-						}
-
-					}
-					elsif($snps{$chr}->{$pos}->{calls}[$strain2_index] == 0){
-						# warn "Strain 2 looks like the reference: $snps{$chr}->{$pos}->{calls}[$strain2_index]\n";
-						# warn "Strain 1 should look like ALT: $snps{$chr}->{$pos}->{calls}[$strain1_index]\n";
-
-						if (defined $snps{$chr}->{$pos}->{REF}){
-							$hybrid_identity{0}->{count} += $snps{$chr}->{$pos}->{REF};
-						}
-						if (defined $snps{$chr}->{$pos}->{ALT}){
-							$hybrid_identity{1}->{count} += $snps{$chr}->{$pos}->{ALT};
-						}
-
-					}
-					else{
-						die "Either strain 1 or strain 2 should look like the reference!\n";
-					}
-
-				}
-				else{
-					# position is not informative
-					++$not_informative;
-				}
-					
-				$processed++;
-			
-			}
-			else{
-				++$not_covered;
-				# warn "Position was not covered at all\n";		
-			}	
-		}	
-	
-	}
-	warn "$hybrid_identity{0}->{name}/$hybrid_identity{0}->{name} hybrid strain stats\n=====================================================\n";
-	warn "SNP positions were covered:\t\t$processed\n";	
-	warn "Positions were not covered:\t\t$not_covered\n";
-	warn "SNP positions were informative:\t\t$informative\n";	
-	warn "SNP positions were not informative (skipped):\t$not_informative\n\n";
-
-	my $percent_strain1;
-	my $percent_strain2;
-	
-	unless (defined $hybrid_identity{0}->{count}){
-		$hybrid_identity{0}->{count} = 0;
-	}
-	unless (defined $hybrid_identity{1}->{count}){
-		$hybrid_identity{1}->{count} = 0;
-	}
-
-	if ( ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) != 0){
-		$percent_strain1 = sprintf("%.1f",$hybrid_identity{0}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
-		$percent_strain2 = sprintf("%.1f",$hybrid_identity{1}->{count} / ($hybrid_identity{0}->{count} + $hybrid_identity{1}->{count}) *100);
-	}
-	else{
-		$percent_strain1 = 'NA ';
-		$percent_strain2 = 'NA ';
-	}
-
-	warn "Strain $hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count} ($percent_strain1%)\n";
-	warn "Strain $hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count} ($percent_strain2%)\n";
-	
-	print RATIOS "$hybrid_identity{0}->{name}\t$hybrid_identity{0}->{count}\t$percent_strain1\t$hybrid_identity{1}->{name}\t$hybrid_identity{1}->{count}\t$percent_strain2\n";	
 }
 
 
