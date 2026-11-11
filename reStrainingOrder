@@ -1511,7 +1511,7 @@ sub open_output_filehandles{
 sub check_for_bs{
 
     my ($paired_end,$samtools_path) = @_;
-    my $isBismark;
+    my $isBismark = 0; # set by any Bismark @PG line, as later tools (e.g. samtools sort) add @PG lines of their own
 
     # SAM/BAM format, checking the first file supplied
 
@@ -1549,9 +1549,6 @@ sub check_for_bs{
 			$paired_end = 0;
 		    }
 		}
-	    }
-	    else{
-		$isBismark = 0;
 	    }
 	}
     }
