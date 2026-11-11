@@ -970,6 +970,7 @@ sub score_bisulfite_SNPs{
 			else{
 				if ($verbose){ warn "The base was different than both genome 1 or genome 2: $read_base\n";}
 				++$irrelevant;
+				$snps{$chr}->{$genomic_pos}->{OTHER}++;
 			}
 
 		}
