@@ -6,6 +6,7 @@
 
 - Chromosomes are now processed in the order of the VCF header, so the genome preparation report is the same on every run. Addressed in [#16](https://github.com/FelixKrueger/reStrainingOrder/pull/16).
 - Chromosome 1 is now filtered under its UCSC name (`chr1`) too. Addressed in [#18](https://github.com/FelixKrueger/reStrainingOrder/pull/18).
+- New option `--parallel <INT>` filters the VCF file in blocks of positions with several processes; the output is the same with any number.
 
 ### reStrainingOrder
 
@@ -21,6 +22,8 @@
 - Blank lines in the SNP file are now skipped, and errors in it name the right line. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
 - Secondary and supplementary alignments are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
 - Reads at a SNP position that have no sequence or CIGAR, or whose sequence, CIGAR and MD tag disagree, are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
+- BAM files are now read much faster: alignments covering no N-masked position are counted from their flag and MD tag alone, and paired-end files are no longer sorted by name first.
+- New option `--parallel <INT>` shares a BAM file out between several processes, which read it themselves; the results are the same with any number.
 
 ## Changelog for version 0.4.0 [release on 12 April 2023]
 

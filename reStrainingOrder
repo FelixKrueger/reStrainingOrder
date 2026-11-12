@@ -5,6 +5,8 @@ use Getopt::Long;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
 use Cwd;
+use Compress::Raw::Zlib ();
+use POSIX ();
 $|++;
 
 
@@ -29,8 +31,15 @@ my $stopat = 10000000;
 my $pipeline_version = '0.4.0';
 my $parent_dir = getcwd;
 my @strains;
-my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection) = process_commandline ();
-my %snps; # storing SNP position and sequence information for all SNPs: $snps{$chr}->{$pos} = "REF base\tALT base\tgenotype calls"
+my ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection,$parallel) = process_commandline ();
+# storing SNP position and sequence information for all SNPs: $snps{$chr}->{$pos} = genotype calls number * 2**24 +
+# bases number. A number takes less memory than a string, and there are millions of positions, but only a few base
+# pairs and many positions with the same genotype calls
+my %snps;
+my @genotype_calls; # the genotype calls of each number
+my @snp_bases; # "REF base\tALT base" of each number
+my %snp_bases_numbers;
+my %genotype_call_numbers; # kept: freed, it would leave holes among the SNP positions that forked workers fill, copying their pages
 my %counts; # $counts{$chr}->{$pos}->{REF|ALT|OTHER}: how many reads showed the REF, ALT or another base at a SNP position
 
 my $snp_found = 0;
@@ -47,6 +56,7 @@ my @total_counts;  # REF, ALT and OTHER counts of all covered positions
 my @strain_counts; # $strain_counts[$strain] the same, for the positions where that strain has the ALT genotype (1)
 my @pair_counts;   # $pair_counts[$strain1][$strain2] the same, for the positions where both strains have the ALT genotype
 my ($no_snp,$genome1,$genome2,$bizarre,$conflicting,$unassigned,$ct_snp,$unassigned_but_ct);
+my ($count,$count_N_containing,$non_N_containing,$contained_N_deletion,$multi_N_deletion,$unmapped,$secondary_supplementary,$malformed); # alignments of the current file
 
 # Checked before any output is opened: the output names are derived by replacing the extension,
 # so for any other name they would be the input file itself
@@ -111,17 +121,15 @@ while (@ARGV){
 
     ### Paired-end
     if ($paired){
-		unless ($no_sort){
-		    warn "File specified as unsorted paired-end BAM file\n";
-		    $file = sort_by_name_paired_end($file); # setting this as the new file
-		}
-		else{
-		    warn "File was specified to be sorted (i.e. Read 1 and Read 2 are following each other in the paired-end BAM file), thus skipping the sorting step\n\n";
-		}
+		# Every alignment is scored on its own, so Read 1 and Read 2 need not follow each other: no sorting by read name
+		warn "File specified as paired-end BAM file\n";
     }
     else{ ### single-end
 		warn "File specified as single-end BAM file\n";
     }
+
+    # the parallel reading of a BAM file starts with what needs no SNP positions
+    my $bam_job = ($parallel > 1 and not $verbose) ? start_BAM_pass($file) : undef; # the verbose output is only in order with one process
 
     if (%snps){ # not necessary to read SNPs a second time
 		warn "Using already stored SNP information\n";
@@ -142,7 +150,7 @@ while (@ARGV){
 		#}
     #}
 
-    process_masked_BAM_file($file);
+    process_masked_BAM_file($file,$bam_job);
     sum_genotype_calls();
 
 	# STEP 1: Calculate single-strain compatibility
@@ -257,9 +265,11 @@ sub collate_summary{
 
 sub process_masked_BAM_file{
 
-    my ($file) = @_;
+    my ($file,$bam_job) = @_;
 
-    open (IN,"$samtools_path view -h $file |") or die "Failed to read from BAM file $file: $!\n";
+    unless ($bam_job){
+		open (IN,"$samtools_path view -@ 2 $file |") or die "Failed to read from BAM file $file: $!\n";
+    }
     warn "Reading from sorted mapping file '$file'\n";
 
     ### READING FROM MAPPING BAM FILE
@@ -268,147 +278,17 @@ sub process_masked_BAM_file{
     # the SNP positions are kept for the next file, but what this file's reads said about them is not
     ($snp_found,$no_snp_found) = (0,0);
     %counts = ();
-    my $count = 0;
+    ($count,$count_N_containing,$non_N_containing,$contained_N_deletion,$multi_N_deletion,$unmapped,$secondary_supplementary,$malformed) = (0,0,0,0,0,0,0,0);
 
-    my $count_N_containing = 0;
-    my $non_N_containing = 0;
-    my $contained_N_deletion = 0;
-    my $multi_N_deletion = 0;
-    my $unmapped = 0;
-    my $secondary_supplementary = 0;
-    my $malformed = 0;
-
-    while (<IN>){
-
-	if ($_ =~ /^\@/){ # header lines
-	    # print OUT;
-	    next;
-	}
-
-	++$count;
-	# warn "N-masked line $count\n"; sleep(1);
-
-	if ($count%1000000 == 0){
-	    warn "Processed $count lines so far\n";
-	}
-
-	my ($id,$flag,$chr,$start,$cigar,$sequence)  = (split /\t/)[0,1,2,3,5,9];
-
-	my ($genome1_count,$genome2_count,$ct_unassigned) = (0 , 0, 0); # will get filled below
-
-	### Checking for unmapped read
-	if ($flag & 0x4){
-	    # warn "read unmapped:\n$_\n"; sleep(1);
-	    $unmapped++;
-	    next; # skipping
-	}
-
-	if ($flag & 0x900){ # secondary or supplementary alignment
-	    ++$secondary_supplementary;
-	    next;
-	}
-
-	my $md_tag = $1 if ($_ =~ /MD:Z:(.+?)\s+/);
-	unless ($md_tag){
-	    die "Failed to extract MD:Z tag from line:\n$_\n";
-	}
-
-	#  if ($verbose){
-	#  print $_;
-	#  print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
-	# }
-
-	my ($XX_tag); # allele-specificity flag
-
-	if ($md_tag =~ /N/){  # skipping these reads for now, may or may not contain additional deletions before the N
-
-	    my $n_dels = 0;
-	    while ($md_tag =~ /\^\D*N\D*\d+/g){ # looking for the number of deletions of the N-SNP position in the read
-		++$n_dels;
-	    }
-
-	    if ($n_dels == 1){
-			++$contained_N_deletion;
-			++$bizarre;
-			$XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
-			# print $_;
-		}
-	    elsif($n_dels > 1){
-			++$contained_N_deletion;
-			++$multi_N_deletion;
-			++$bizarre;
-			# warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
-			# print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
-			$XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
-			# print $_;
-	    }
-	    else{ # no deletion of the N position itself
-		++$count_N_containing;
-		my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
-		unless ($consistent){
-		    warn "Skipping read $id ($why); further malformed reads in this file are skipped without a warning\n" unless ($malformed);
-		    ++$malformed;
-		    next;
-		}
-		### Determine whether the N was a known SNP and whether we can assign an allele
-		($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
-		# print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
-		if ($genome1_count > 0 and $genome2_count > 0){
-		    ++$bizarre;
-		    $XX_tag = 'XX:Z:CF'; #  read contained one or more SNPs for both genomes -> dodgy
-		}
-		elsif ($genome1_count > $genome2_count){
-		    $genome1++;
-		    $XX_tag = 'XX:Z:G1'; # genome 1 specific
-		}
-		elsif($genome2_count > $genome1_count){
-		    $genome2++;
-		     $XX_tag = 'XX:Z:G2'; # genome 2 specific
-		}
-		elsif($genome1_count == 0 and $genome2_count == 0){
-		    # read came back without any assigned number, e.g. the SNP position contained a base different to either genome. The read is thus unassignable
-		    if ($bisulfite){
-				# for bisulfite reads this may have happened because of C>T SNPs
-				if ($ct_unassigned > 0){
-				    # we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
-				    ++$unassigned_but_ct;
-				}
-				else{
-				    ++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
-				}
-		    }
-		    else{
-				++$no_snp;
-			}
-		    $XX_tag = 'XX:Z:UA'; # unassignable read
-		    ++$unassigned;
-		}
-		else{
-		    warn "g1: $genome1_count\ng2: $genome2_count\n";
-		    die "The read could not be assigned an XX-tag\n\n";
-		}
-	    }
-	}
-	else{
-	    ++$non_N_containing;
-	    ### Read did not cover a SNP position and is by definition unassignable
-	    $XX_tag = 'XX:Z:UA'; # unassignable read
-	    ++$unassigned;
-	}
-
-	unless ($XX_tag){
-	    die "The XX tag should have been set by now ...\n";
-	}
-
-		chomp; # appending the XX tag to the current BAM line
-		$_ .= "\t$XX_tag\n";
-		#	print OUT;
-
+    if ($bam_job){
+		finish_BAM_pass($bam_job);
+    }
+    else{
+		tag_alignments(\*IN,1);
     }
 
-
-
     ### Printing Summary reports of the stats on a per-read basis
+
 
     my ($perc_no_snp,$perc_genome1,$perc_genome2,$perc_bizarre,$perc_unassigned,$perc_unmapped,$perc_secondary,$perc_malformed);
     if ($count == 0){
@@ -508,6 +388,652 @@ sub process_masked_BAM_file{
 }
 
 
+# Tags the alignments read from $in, adding to the counts of the current file
+sub tag_alignments{
+    my ($in,$progress) = @_;
+    while (<$in>){
+	if ($_ =~ /^\@/){ # header lines
+	    # print OUT;
+	    next;
+	}
+
+	++$count;
+	# warn "N-masked line $count\n"; sleep(1);
+
+	if ($progress and $count%1000000 == 0){
+	    warn "Processed $count lines so far\n";
+	}
+
+	my $flag = (split /\t/,$_,3)[1];
+
+	my ($genome1_count,$genome2_count,$ct_unassigned) = (0 , 0, 0); # will get filled below
+
+	### Checking for unmapped read
+	if ($flag & 0x4){
+	    # warn "read unmapped:\n$_\n"; sleep(1);
+	    $unmapped++;
+	    next; # skipping
+	}
+
+	if ($flag & 0x900){ # secondary or supplementary alignment
+	    ++$secondary_supplementary;
+	    next;
+	}
+
+	my $md_tag = $1 if ($_ =~ /\tMD:Z:([^\t\n]+)/);
+	unless ($md_tag){
+	    die "Failed to extract MD:Z tag from line:\n$_\n";
+	}
+
+	# Most alignments cover no N-masked position, and the flag and MD tag are all it takes to count those
+	unless ($md_tag =~ /N/){
+	    ++$non_N_containing;
+	    ++$unassigned;
+	    next;
+	}
+	my ($id,$chr,$start,$cigar,$sequence) = (split /\t/,$_,11)[0,2,3,5,9];
+
+	#  if ($verbose){
+	#  print $_;
+	#  print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
+	# }
+
+	my ($XX_tag); # allele-specificity flag
+
+	if ($md_tag =~ /N/){  # skipping these reads for now, may or may not contain additional deletions before the N
+
+	    my $n_dels = 0;
+	    while ($md_tag =~ /\^\D*N\D*\d+/g){ # looking for the number of deletions of the N-SNP position in the read
+		++$n_dels;
+	    }
+
+	    if ($n_dels == 1){
+			++$contained_N_deletion;
+			++$bizarre;
+			$XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
+			# print $_;
+		}
+	    elsif($n_dels > 1){
+			++$contained_N_deletion;
+			++$multi_N_deletion;
+			++$bizarre;
+			# warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
+			# print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
+			$XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
+			# print $_;
+	    }
+	    else{ # no deletion of the N position itself
+		++$count_N_containing;
+		my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
+		unless ($consistent){
+		    warn "Skipping read $id ($why); further malformed reads in this file are skipped without a warning\n" unless ($malformed);
+		    ++$malformed;
+		    next;
+		}
+		### Determine whether the N was a known SNP and whether we can assign an allele
+		($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
+		# print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
+		if ($genome1_count > 0 and $genome2_count > 0){
+		    ++$bizarre;
+		    $XX_tag = 'XX:Z:CF'; #  read contained one or more SNPs for both genomes -> dodgy
+		}
+		elsif ($genome1_count > $genome2_count){
+		    $genome1++;
+		    $XX_tag = 'XX:Z:G1'; # genome 1 specific
+		}
+		elsif($genome2_count > $genome1_count){
+		    $genome2++;
+		     $XX_tag = 'XX:Z:G2'; # genome 2 specific
+		}
+		elsif($genome1_count == 0 and $genome2_count == 0){
+		    # read came back without any assigned number, e.g. the SNP position contained a base different to either genome. The read is thus unassignable
+		    if ($bisulfite){
+				# for bisulfite reads this may have happened because of C>T SNPs
+				if ($ct_unassigned > 0){
+				    # we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
+				    ++$unassigned_but_ct;
+				}
+				else{
+				    ++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
+				}
+		    }
+		    else{
+				++$no_snp;
+			}
+		    $XX_tag = 'XX:Z:UA'; # unassignable read
+		    ++$unassigned;
+		}
+		else{
+		    warn "g1: $genome1_count\ng2: $genome2_count\n";
+		    die "The read could not be assigned an XX-tag\n\n";
+		}
+	    }
+	}
+	else{
+	    ++$non_N_containing;
+	    ### Read did not cover a SNP position and is by definition unassignable
+	    $XX_tag = 'XX:Z:UA'; # unassignable read
+	    ++$unassigned;
+	}
+
+	unless ($XX_tag){
+	    die "The XX tag should have been set by now ...\n";
+	}
+
+		chomp; # appending the XX tag to the current BAM line
+		$_ .= "\t$XX_tag\n";
+		#	print OUT;
+
+    }
+}
+
+# Shares a BAM file out between forked workers, which read it themselves: turning every record into a SAM line takes
+# samtools longer than the whole scoring. The file is cut into chunks of BGZF blocks, and a worker finds the first
+# record of its chunk by checking which offset starts a run of valid records. As the record that follows each chunk
+# must be the first record found in the next one, a wrong guess stops the run instead of changing the counts.
+# This first pass needs no SNP positions, so it runs while they are read: it counts the alignments covering no N, and
+# keeps the others, which a second set of workers scores once the SNP positions are known
+sub start_BAM_pass{
+    my ($file) = @_;
+    my $header = read_BAM_header($file) or return; # left to samtools
+    my $job = {header => $header, workers => []};
+    return $job if ($header->{first} eq 'EOF'); # no alignments
+    my $size = -s $file;
+    my $chunks = int ($size / (1024 * 1024)) + 1;
+    $chunks = $parallel * 8 if ($chunks > $parallel * 8);
+    my @bounds = map { int ($size * $_ / $chunks) } 0..$chunks;
+    # the chunks to do, which each worker takes from as it goes
+    pipe (my $chunk_reader,my $chunk_writer) or die "Failed to create a pipe for the workers: $!\n";
+    write_bytes($chunk_writer,pack ('N*',0..$chunks - 1));
+    close $chunk_writer;
+
+    foreach my $worker (1..$parallel){
+		pipe (my $result_reader,my $result_writer) or die "Failed to create a pipe for worker $worker: $!\n";
+		my $pid = fork;
+		die "Failed to start worker $worker: $!\n" unless (defined $pid);
+		if ($pid == 0){
+		    close $_->[1] foreach (@{$job->{workers}}); # the main process's ends of the other workers' pipes
+		    close $result_reader;
+		    my $ok = eval{
+				my %tally = (count => 0, unmapped => 0, secondary => 0, non_N => 0);
+				my ($reports,$kept) = ('','');
+				while ((my $chunk = read_bytes($chunk_reader,4)) ne ''){
+				    $chunk = unpack ('N',$chunk);
+				    $kept .= 'C'.pack ('V N',4,$chunk);
+				    $reports .= "$chunk\t".tag_BAM_chunk($file,$header,$bounds[$chunk],$bounds[$chunk + 1],\%tally,\$kept)."\n";
+				}
+				send_message($result_writer,join ("\t",@tally{qw(count unmapped secondary non_N)})."\n$reports");
+				send_message($result_writer,$kept);
+				1;
+		    };
+		    warn $@ unless ($ok);
+		    # _exit, not exit: the output filehandles belong to the main process and must not be flushed a second time
+		    POSIX::_exit($ok ? 0 : 1);
+		}
+		close $result_writer;
+		push @{$job->{workers}},[$pid,$result_reader];
+    }
+    close $chunk_reader;
+    return $job;
+}
+
+# Collects the first pass and scores the alignments it kept
+sub finish_BAM_pass{
+    my ($job) = @_;
+    my $workers = $job->{workers};
+    return unless (@$workers);
+    my (@reports,@kept);
+    my $records = 0;
+    foreach my $worker (@$workers){
+		my ($pid,$result_reader) = @$worker;
+		my $result = receive_message($result_reader);
+		die "A worker stopped before the end of the file, see the messages above\n" unless (length $result);
+		my @lines = split (/\n/,$result);
+		my ($worker_count,$worker_unmapped,$worker_secondary,$worker_non_N) = split (/\t/,shift @lines);
+		$count += $worker_count;
+		$unmapped += $worker_unmapped;
+		$secondary_supplementary += $worker_secondary;
+		$non_N_containing += $worker_non_N;
+		$unassigned += $worker_non_N;
+		foreach (@lines){
+		    my ($chunk,@report) = split (/\t/);
+		    $reports[$chunk] = \@report;
+		    warn "Processed ${_}000000 lines so far\n" foreach (int ($records / 1000000) + 1 .. int (($records + $report[0]) / 1000000));
+		    $records += $report[0];
+		}
+		push @kept,receive_message($result_reader);
+		close $result_reader;
+		waitpid ($pid,0);
+		die "A worker failed, see the messages above\n" if ($?);
+    }
+
+    # every record was read exactly once if each chunk ended where the next one started
+    my $expected = $job->{header}->{first};
+    foreach my $report (@reports){
+		my ($chunk_records,$first,$after) = @$report;
+		next if ($first eq '-'); # no record started in this chunk
+		die "Failed to split the BAM file between the workers (a chunk started at $first instead of $expected). Please run again with '--parallel 1'\n" unless ($first eq $expected);
+		$expected = $after;
+    }
+    die "Failed to split the BAM file between the workers (the last chunk ended at $expected). Please run again with '--parallel 1'\n" unless ($expected eq 'EOF');
+
+    # Scoring what was kept, the records of one first pass worker in each second pass worker
+    my @counters = \($count,$count_N_containing,$non_N_containing,$contained_N_deletion,$multi_N_deletion,$unmapped,$secondary_supplementary,$malformed,
+                     $no_snp,$genome1,$genome2,$bizarre,$unassigned,$ct_snp,$unassigned_but_ct,$snp_found,$no_snp_found);
+    my @scorers;
+    foreach my $records (@kept){
+		pipe (my $result_reader,my $result_writer) or die "Failed to create a pipe for a worker: $!\n";
+		my $pid = fork;
+		die "Failed to start a worker: $!\n" unless (defined $pid);
+		if ($pid == 0){
+		    close $_->[1] foreach (@scorers);
+		    close $result_reader;
+		    my $ok = eval{
+				$$_ = 0 foreach (@counters); # only what these records add
+				%counts = ();
+				my ($offset,$lines,$chunk,$first_malformed) = (0,'',0,'');
+				# a worker's chunks come in file order, so its first malformed read is the first of them in the file
+				local $SIG{__WARN__} = sub{ $_[0] =~ /^Skipping read / ? ($first_malformed = "$chunk\t$_[0]") : warn $_[0] };
+				my $score = sub{
+				    open (my $in,'<',\$lines) or die "Failed to read SAM lines from memory: $!\n";
+				    tag_alignments($in,0);
+				    $lines = '';
+				};
+				while ($offset < length $records){
+				    my ($type,$size) = unpack ('a V',substr ($records,$offset,5));
+				    if ($type eq 'C'){
+						$score->() if (length $lines);
+						$chunk = unpack ('N',substr ($records,$offset + 5,4));
+				    }
+				    else{
+						$lines .= BAM_record_to_SAM(substr ($records,$offset + 5,$size),$job->{header}->{refs},$type eq 'S')."\n";
+				    }
+				    $offset += 5 + $size;
+				    $score->() if (length $lines > 512 * 1024 or ($offset >= length $records and length $lines));
+				}
+				my $positions = '';
+				foreach my $chr (keys %counts){
+				    foreach my $pos (keys %{$counts{$chr}}){
+						my $position = $counts{$chr}->{$pos};
+						$positions .= join ("\t",$chr,$pos,map { $position->{$_} // '' } qw(REF ALT OTHER))."\n";
+				    }
+				}
+				chomp $first_malformed;
+				send_message($result_writer,join ("\t",map { $$_ } @counters)."\n$first_malformed\n".$positions);
+				1;
+		    };
+		    warn $@ unless ($ok);
+		    POSIX::_exit($ok ? 0 : 1);
+		}
+		close $result_writer;
+		push @scorers,[$pid,$result_reader];
+    }
+    @kept = ();
+
+    my ($first_chunk,$first_warning);
+    foreach my $scorer (@scorers){
+		my ($pid,$result_reader) = @$scorer;
+		my $result = receive_message($result_reader);
+		die "A worker stopped without returning its counts, see the messages above\n" unless (length $result);
+		close $result_reader;
+		waitpid ($pid,0);
+		die "A worker failed, see the messages above\n" if ($?);
+		my @lines = split (/\n/,$result);
+		my @values = split (/\t/,shift @lines);
+		${$counters[$_]} += $values[$_] foreach (0..$#counters);
+		my ($chunk,$warning) = split (/\t/,shift (@lines) // '',2);
+		($first_chunk,$first_warning) = ($chunk,$warning) if (length $chunk and (!defined $first_chunk or $chunk < $first_chunk));
+		foreach (@lines){
+		    my ($chr,$pos,@calls) = split (/\t/,$_,-1);
+		    my $position = $counts{$chr}->{$pos} //= {};
+		    foreach my $i (0..2){
+				$position->{(qw(REF ALT OTHER))[$i]} += $calls[$i] if (length $calls[$i]);
+		    }
+		}
+    }
+    warn "$first_warning\n" if (defined $first_warning);
+}
+
+# The reference names and the place of the first record, or nothing if this is not a BGZF compressed BAM file
+sub read_BAM_header{
+    my ($file) = @_;
+    my $reader = BGZF_reader($file,0) or return;
+    my $need = sub{ # the header continues past the end of the file if a block is missing
+		my ($length) = @_;
+		while (length (${$reader->{buffer}}) < $length){
+		    return 0 unless ($reader->{next_block}->());
+		}
+		return 1;
+    };
+    my $ok = eval{
+		$need->(12) and substr (${$reader->{buffer}},0,4) eq "BAM\1" or return 0;
+		my $offset = 8 + unpack ('V',substr (${$reader->{buffer}},4,4));
+		$need->($offset + 4) or return 0;
+		my $n_ref = unpack ('V',substr (${$reader->{buffer}},$offset,4));
+		$offset += 4;
+		my @refs;
+		foreach (1..$n_ref){
+		    $need->($offset + 4) or return 0;
+		    my $length = unpack ('V',substr (${$reader->{buffer}},$offset,4));
+		    $need->($offset + 8 + $length) or return 0;
+		    push @refs,substr (${$reader->{buffer}},$offset + 4,$length - 1);
+		    $offset += 8 + $length;
+		}
+		$reader->{header} = {refs => \@refs, first => $reader->{place}->($offset)};
+		1;
+    };
+    my $header = $reader->{header};
+    %$reader = (); # its subs refer to it
+    return unless ($ok); # left to samtools, which says what is wrong with the file
+    return $header;
+}
+
+# Reads the BGZF blocks of $file from the block at $start on, appending what they hold to ${$reader->{buffer}}
+sub BGZF_reader{
+    my ($file,$start) = @_;
+    open (my $fh,'<:raw',$file) or die "Failed to read from BAM file $file: $!\n";
+    seek ($fh,$start,0) or die "Failed to read from BAM file $file: $!\n";
+    my $inflate = Compress::Raw::Zlib::Inflate->new(-WindowBits => -Compress::Raw::Zlib::MAX_WBITS())
+		or die "Failed to start decompressing BAM file $file\n";
+    my $buffer = '';
+    my %reader = (buffer => \$buffer, base => 0, eof => 0, blocks => [], end => undef);
+    # base: how far into the uncompressed data of the chunk the buffer starts. blocks: [file offset, uncompressed offset]
+    my $block = $start;
+    $reader{next_block} = sub{
+		return 0 if ($reader{eof});
+		my $read = read ($fh,my $head,18);
+		die "Failed to read from BAM file $file: $!\n" unless (defined $read);
+		if ($read == 0){
+		    $reader{eof} = 1;
+		    return 0;
+		}
+		die "BAM file $file is truncated or not BGZF compressed\n" unless ($read == 18 and $head =~ /^\x1f\x8b\x08\x04.{6}\x06\x00BC\x02\x00/s);
+		my $size = unpack ('v',substr ($head,16,2)) + 1;
+		($read = read ($fh,my $data,$size - 18)) == $size - 18 or die "BAM file $file is truncated\n";
+		$reader{block_hook}->($block) if ($reader{block_hook});
+		push @{$reader{blocks}},[$block,$reader{base} + length $buffer];
+		$inflate->inflateReset;
+		my $out;
+		my $status = $inflate->inflate (substr ($data,0,-8),$out);
+		die "Failed to decompress BAM file $file at offset $block: $status\n" unless ($status == Compress::Raw::Zlib::Z_STREAM_END() or ($status == Compress::Raw::Zlib::Z_OK() and length $out == 0));
+		$out //= '';
+		die "Failed to decompress BAM file $file at offset $block\n" unless (length $out == unpack ('V',substr ($data,-4)));
+		$buffer .= $out;
+		$block += $size;
+		return 1;
+    };
+    # 'block offset:offset in the block' of an uncompressed offset, or EOF past the last record
+    $reader{place} = sub{
+		my ($offset) = @_;
+		while ($offset >= $reader{base} + length $buffer){
+		    return 'EOF' unless ($reader{next_block}->());
+		}
+		my $blocks = $reader{blocks};
+		my $i = $#$blocks;
+		--$i while ($blocks->[$i][1] > $offset);
+		return "$blocks->[$i][0]:".($offset - $blocks->[$i][1]);
+    };
+    return \%reader;
+}
+
+# Scores the records starting in the BGZF blocks that start between offsets $from and $to of the file. Returns the
+# number of records, the place of the first of them and that of the record after them
+sub tag_BAM_chunk{
+    my ($file,$header,$from,$to,$tally,$kept) = @_;
+    my ($first_block,$first_offset) = split (/:/,$header->{first});
+    my $start = $from <= $first_block ? $first_block : next_BGZF_block($file,$from);
+    return "0\t-\t-" unless (defined $start and $start < $to);
+    my $reader = BGZF_reader($file,$start);
+    my $buffer = $reader->{buffer};
+    $reader->{block_hook} = sub{ $reader->{end} //= $reader->{base} + length $$buffer if ($_[0] >= $to) };
+    my $more = sub{ # true while there is data from offset $_[0] on, reading blocks as needed
+		while ($_[0] >= $reader->{base} + length $$buffer){
+		    return 0 unless ($reader->{next_block}->());
+		}
+		return 1;
+    };
+    my $owned = sub{ # records starting in a block of the next chunk, or at the end of the file, are not ours
+		my ($offset) = @_;
+		$more->($offset) or return 0;
+		return !(defined $reader->{end} and $offset >= $reader->{end});
+    };
+
+    my $offset;
+    if ($start == $first_block){
+		$offset = $first_offset;
+    }
+    else{
+		$more->(1024 * 1024); # enough records to check
+		$reader->{end} //= $reader->{base} + length $$buffer if ($reader->{eof});
+		my $limit = $reader->{end} // $reader->{base} + length $$buffer;
+		my $n_ref = scalar @{$header->{refs}};
+		for (my $candidate = 0; $candidate < $limit; ++$candidate){
+		    if (starts_BAM_records($buffer,$candidate,$n_ref)){
+				$offset = $candidate;
+				last;
+		    }
+		}
+		unless (defined $offset){
+		    %$reader = (); # its subs refer to it
+		    return "0\t-\t-";
+		}
+    }
+    my $first = $reader->{place}->($offset);
+
+    my ($records,$unmapped_records,$secondary_records,$non_N_records) = (0,0,0,0);
+    my $refs = $header->{refs};
+    my $route_all = grep { /^MD:Z:/ } @$refs; # a reference name that would read as an MD tag in the SAM line
+    # the buffer holds the data from $base to $have; records from $limit on (once known) belong to the next chunk
+    my ($base,$have,$limit);
+    my $refresh = sub{ ($base,$have,$limit) = ($reader->{base},$reader->{base} + length $$buffer,$reader->{end}) };
+    $refresh->();
+    while (1){
+		if ($offset + 4 > $have){
+		    last unless ($owned->($offset));
+		    $more->($offset + 3) or die "BAM file $file is truncated\n";
+		    $refresh->();
+		}
+		elsif (defined $limit and $offset >= $limit){
+		    last;
+		}
+		my $at = $offset - $base;
+		if ($at > 512 * 1024){ # dropping what has been read
+		    substr ($$buffer,0,$at,'');
+		    $reader->{base} += $at;
+		    $refresh->();
+		    $at = 0;
+		}
+		my $size = unpack ('V',substr ($$buffer,$at,4));
+		if ($offset + 4 + $size > $have){
+		    $more->($offset + 3 + $size) or die "BAM file $file is truncated\n";
+		    $refresh->();
+		}
+		my ($l_read_name,$n_cigar,$flag,$l_seq) = unpack ('x12 C x3 v v V',substr ($$buffer,$at,24));
+		$offset += 4 + $size;
+		++$records;
+		if ($flag & 0x4){
+		    ++$unmapped_records;
+		    next;
+		}
+		if ($flag & 0x900){
+		    ++$secondary_records;
+		    next;
+		}
+		# The MD tag, found by going over the tags until it; anything unusual is left to the SAM line
+		my $qual = $at + 36 + $l_read_name + 4 * $n_cigar + (($l_seq + 1) >> 1);
+		my $aux = $qual + $l_seq;
+		if (!$route_all and substr ($$buffer,$at + 36,5) ne 'MD:Z:' and substr ($$buffer,$qual,5) ne "\x2c\x23\x19\x39\x19"
+			and substr ($$buffer,$aux,$at + 4 + $size - $aux) =~ /^(?:[A-Za-z][A-Za-z0-9](?:[AcC].|[sS]..|[iIf]....|[ZH][^\0]*\0))*?MDZ([^\0]*)\0/s){
+		    my $md = $1;
+		    if ($md ne '' and $md ne '0' and $md !~ /[N\t\n]/){
+				++$non_N_records;
+				next;
+		    }
+		}
+		# kept to be scored as a SAM line once the SNP positions are known, without the base qualities (the scoring
+		# never looks at them) unless they would read as one of the tags it looks for
+		my $quals = substr ($$buffer,$qual,$l_seq);
+		if ($l_seq and index ($quals,"\x37\x31\x19\x39\x19") < 0 and index ($quals,"\x37\x26\x19\x39\x19") < 0
+			and substr ($quals,0,5) ne "\x2c\x23\x19\x39\x19"){ # XR:Z:, XG:Z: and MD:Z: as qualities
+		    $$kept .= 'S'.pack ('V',$size - $l_seq).substr ($$buffer,$at + 4,$qual - $at - 4).substr ($$buffer,$aux,$at + 4 + $size - $aux);
+		}
+		else{
+		    $$kept .= 'F'.substr ($$buffer,$at,4 + $size);
+		}
+    }
+    $tally->{count} += $unmapped_records + $secondary_records + $non_N_records;
+    $tally->{unmapped} += $unmapped_records;
+    $tally->{secondary} += $secondary_records;
+    $tally->{non_N} += $non_N_records;
+    my $report = join ("\t",$records,$first,$reader->{place}->($offset));
+    %$reader = (); # its subs refer to it
+    return $report;
+}
+
+# The file offset of the first BGZF block starting at $from or after it
+sub next_BGZF_block{
+    my ($file,$from) = @_;
+    open (my $fh,'<:raw',$file) or die "Failed to read from BAM file $file: $!\n";
+    my $size = -s $fh;
+    while ($from < $size){
+		seek ($fh,$from,0) or die "Failed to read from BAM file $file: $!\n";
+		defined (read ($fh,my $data,256 * 1024)) or die "Failed to read from BAM file $file: $!\n";
+		while ($data =~ /\x1f\x8b\x08\x04.{6}\x06\x00BC\x02\x00/gs){
+		    my $block = $from + $-[0];
+		    my $next = $block + unpack ('v',substr ($data,$-[0] + 16,2)) + 1;
+		    return $block if ($next == $size); # the last block
+		    next if ($next > $size);
+		    seek ($fh,$next,0) or die "Failed to read from BAM file $file: $!\n";
+		    read ($fh,my $head,16);
+		    return $block if (defined $head and $head =~ /^\x1f\x8b\x08\x04.{6}\x06\x00BC\x02\x00/s);
+		}
+		$from += 256 * 1024 - 17;
+    }
+    return;
+}
+
+# Whether a run of valid records starts at $offset of $$buffer (up to 8, or the end of the buffer)
+sub starts_BAM_records{
+    my ($buffer,$offset,$n_ref) = @_;
+    my $checked = 0;
+    while ($checked < 8 and $offset + 36 <= length $$buffer){
+		my ($size,$ref,$pos,$l_read_name,undef,undef,$n_cigar,undef,$l_seq,$next_ref,$next_pos) = unpack ('V l l C C v v v V l l',substr ($$buffer,$offset,36));
+		return 0 unless ($size >= 32 and $size < 64 * 1024 * 1024 and $ref >= -1 and $ref < $n_ref and $pos >= -1
+				and $next_ref >= -1 and $next_ref < $n_ref and $next_pos >= -1 and $l_read_name >= 2
+				and 32 + $l_read_name + 4 * $n_cigar + (($l_seq + 1) >> 1) + $l_seq <= $size);
+		last if ($offset + 4 + $size > length $$buffer);
+		return 0 unless (substr ($$buffer,$offset + 36,$l_read_name) =~ /^[!-?A-~]+\0\z/);
+		foreach my $op (unpack ("V$n_cigar",substr ($$buffer,$offset + 36 + $l_read_name,4 * $n_cigar))){
+		    return 0 if (($op & 0xf) > 8);
+		}
+		$offset += 4 + $size;
+		++$checked;
+    }
+    return $checked > 0;
+}
+
+my @base_pairs; # the two bases of each byte of a BAM sequence
+my %tag_formats; # the unpack format and size of each type of number
+
+# A BAM record (without its length) as the SAM line samtools view prints, '*' for the qualities if they were left out
+sub BAM_record_to_SAM{
+    my ($record,$refs,$without_qualities) = @_;
+    @base_pairs = map { my $byte = $_; join ('',map { substr ('=ACMGRSVTWYHKDBN',$_,1) } $byte >> 4,$byte & 0xf) } 0..255 unless (@base_pairs);
+    %tag_formats = (c => ['c',1], C => ['C',1], s => ['s<',2], S => ['v',2], i => ['l<',4], I => ['V',4], f => ['f<',4]) unless (%tag_formats);
+    my ($ref,$pos,$l_read_name,$mapq,$n_cigar,$flag,$l_seq,$next_ref,$next_pos,$tlen) = unpack ('l l C C x2 v v V l l l',$record);
+    my $p = 32;
+    my $name = substr ($record,$p,$l_read_name - 1);
+    $p += $l_read_name;
+    my @cigar = unpack ("V$n_cigar",substr ($record,$p,4 * $n_cigar));
+    $p += 4 * $n_cigar;
+    my $seq = $l_seq ? substr (join ('',@base_pairs[unpack ('C*',substr ($record,$p,($l_seq + 1) >> 1))]),0,$l_seq) : '*';
+    $p += ($l_seq + 1) >> 1;
+    my $qual = $without_qualities ? '' : substr ($record,$p,$l_seq);
+    $p += $l_seq unless ($without_qualities);
+    if ($l_seq == 0 or $without_qualities or substr ($qual,0,1) eq "\xff"){
+		$qual = '*';
+    }
+    else{
+		$qual =~ tr/\x00-\x5d/\x21-\x7e/;
+    }
+    my @tags;
+    my $cg; # the CIGAR of a record with more operations than BAM can hold, kept in a CG tag
+    while ($p < length $record){
+		my ($tag,$type) = (substr ($record,$p,2),substr ($record,$p + 2,1));
+		$p += 3;
+		if ($type eq 'Z' or $type eq 'H'){
+		    my $end = index ($record,"\0",$p);
+		    die "Malformed tag $tag in a BAM record of read $name\n" if ($end < 0);
+		    push @tags,"$tag:$type:".substr ($record,$p,$end - $p);
+		    $p = $end + 1;
+		}
+		elsif ($type eq 'A'){
+		    push @tags,"$tag:A:".substr ($record,$p,1);
+		    ++$p;
+		}
+		elsif (my $format = $tag_formats{$type}){
+		    my $value = unpack ($format->[0],substr ($record,$p,$format->[1]));
+		    push @tags,$type eq 'f' ? "$tag:f:".sprintf ('%g',$value) : "$tag:i:$value";
+		    $p += $format->[1];
+		}
+		elsif ($type eq 'B'){
+		    my ($subtype,$n) = unpack ('a V',substr ($record,$p,5));
+		    $p += 5;
+		    my $format = $tag_formats{$subtype} or die "Malformed tag $tag in a BAM record of read $name\n";
+		    my @values = unpack ("$format->[0]$n",substr ($record,$p,$n * $format->[1]));
+		    $p += $n * $format->[1];
+		    if ($tag eq 'CG' and $subtype eq 'I' and $n_cigar == 2 and $cigar[0] == ($l_seq << 4 | 4) and ($cigar[1] & 0xf) == 3){
+				$cg = \@values;
+				next;
+		    }
+		    @values = map { sprintf ('%g',$_) } @values if ($subtype eq 'f');
+		    push @tags,join (',',"$tag:B:$subtype",@values);
+		}
+		else{
+		    die "Unknown type '$type' of tag $tag in a BAM record of read $name\n";
+		}
+    }
+    @cigar = @$cg if ($cg);
+    my $cigar = @cigar ? join ('',map { ($_ >> 4).substr ('MIDNSHP=X',$_ & 0xf,1) } @cigar) : '*';
+    my $rname = $ref < 0 ? '*' : $refs->[$ref];
+    my $rnext = $next_ref < 0 ? '*' : $next_ref == $ref ? '=' : $refs->[$next_ref];
+    return join ("\t",$name,$flag,$rname,$pos + 1,$mapq,$cigar,$rnext,$next_pos + 1,$tlen,$seq,$qual,@tags);
+}
+
+# Messages between the main process and the workers: a length, then that many bytes
+sub send_message{
+    my ($fh,$data) = @_;
+    write_bytes($fh,pack ('N',length $data).$data);
+}
+
+sub write_bytes{
+    my ($fh,$data) = @_;
+    my $offset = 0;
+    while ($offset < length $data){
+		my $written = syswrite ($fh,$data,length ($data) - $offset,$offset);
+		die "Failed to write to a worker pipe: $!\n" unless (defined $written);
+		$offset += $written;
+    }
+}
+
+sub receive_message{
+    my ($fh) = @_;
+    my $length = read_bytes($fh,4);
+    return '' unless (length $length == 4); # the other end has gone
+    return read_bytes($fh,unpack ('N',$length));
+}
+
+sub read_bytes{
+    my ($fh,$wanted) = @_;
+    my $data = '';
+    while (length $data < $wanted){
+		my $read = sysread ($fh,$data,$wanted - length $data,length $data);
+		die "Failed to read from a worker pipe: $!\n" unless (defined $read);
+		last if ($read == 0);
+    }
+    return $data;
+}
+
 sub determine_N_position{
 
     my ($chr,$start,$cigar,$sequence,$md_tag,$line) = @_;
@@ -592,7 +1118,7 @@ sub score_snp_position{
 	### seeing if the SNP is present in the SNP position list
 	if (exists $snps{$chr}->{$genomic_pos}){
 		++$snp_found;
-		my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
+		my ($ref_base,$snp_base) = split (/\t/,$snp_bases[$snps{$chr}->{$genomic_pos} % 2**24]);
 		# warn "SNP existed!\n";sleep(1);
 		if ($verbose) { warn "SNP was present: ref: $ref_base\tsnp: $snp_base\n";}
 		if ($verbose) { warn "base in read was: $read_base\n";}
@@ -763,7 +1289,7 @@ sub add_deletion{
 sub score_bisulfite_SNPs{
    
     my ($line,$chr,$genomic_pos,$read_base,$genome1,$genome2,$irrelevant,$ct_unassigned) = @_;
-    my ($ref_base,$snp_base) = split (/\t/,$snps{$chr}->{$genomic_pos});
+    my ($ref_base,$snp_base) = split (/\t/,$snp_bases[$snps{$chr}->{$genomic_pos} % 2**24]);
     my $first_read_conversion;
     my $genome_conversion;
     # warn "$line\n"; sleep(1);
@@ -1136,23 +1662,6 @@ sub sam2bam_convert{
 
 }
 
-sub sort_by_name_paired_end{
-
-    my $file = shift;
-
-    my $sorted = $file;
-    $sorted =~ s/bam$/sortedByName.bam/;
-
-    warn "Sorting paired-end BAM file '$file' by read IDs ...\n";
-    #   system ("$samtools_path sort -O BAM -n -o $sorted $file"); # added -O BAM on 13 Dec 2016
-    system ("$samtools_path sort -n -o $sorted $file");  # removed -O again because it doesn't seem to be working... 09 Jan 2017
-    $file = $sorted; # setting sorted BAM file as new $file
-    warn "Finished sorting BAM file into new file '$file'\n\n";
-    sleep (1);
-    return $file;
-
-}
-
 sub read_snps{
 
     if ($snp_file =~ /\.gz$/){
@@ -1190,7 +1699,10 @@ sub read_snps{
 	
 		### for N-masked genomes the SNPs are stored in an. hashes
 		# one string per position rather than a hash: there are millions of them
-		$snps{$chr}->{$pos} = "$ref\t$snp\t$calls";
+		my $calls_number = $genotype_call_numbers{$calls} //= push (@genotype_calls,$calls) - 1;
+		my $bases_number = $snp_bases_numbers{"$ref\t$snp"} //= push (@snp_bases,"$ref\t$snp") - 1;
+		die "Too many different REF and ALT bases in the SNP file\n" if ($bases_number >= 2**24);
+		$snps{$chr}->{$pos} = $calls_number * 2**24 + $bases_number;
 		# print "@calls\n";
 		# unless (exists $counting{$strain}){
 		#	$counting{$strain} = 0;
@@ -1504,7 +2016,7 @@ sub sum_genotype_calls{
 		$uncovered_positions += keys %{$snps{$chr}};
 		foreach my $pos (keys %{$counts{$chr}}){
 			my $position = $counts{$chr}->{$pos};
-			my $calls = (split (/\t/,$snps{$chr}->{$pos}))[2];
+			my $calls = $genotype_calls[int ($snps{$chr}->{$pos} / 2**24)];
 			my $sums = $patterns{$calls} //= [0,0,0];
 			$sums->[0] += $position->{REF}   // 0;
 			$sums->[1] += $position->{ALT}   // 0;
@@ -1796,6 +2308,7 @@ sub process_commandline{
     my $singletons;
     my $bisulfite;
     my $skip_hybrid_detection;
+    my $parallel = 1;
 
     my $command_line = GetOptions ('help|man'                => \$help,
 				   'versions'                => \$version,
@@ -1811,6 +2324,7 @@ sub process_commandline{
 				   'singletons'              => \$singletons,
 				   'bisulfite'               => \$bisulfite,
 				   'skip_hybrid_detection'   => \$skip_hybrid_detection,
+				   'parallel=i'              => \$parallel,
 	);
 
     ### EXIT ON ERROR if there were errors with any of the supplied options
@@ -1974,7 +2488,9 @@ VERSION
 		warn "File looks like standard genomic file (aligned with e.g. Bowtie2 or HISAT2)\n";
 	}
 
-    return ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection);
+    die "--parallel needs to be at least 1 (was given $parallel)\n" if ($parallel < 1);
+
+    return ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection,$parallel);
 }
 
 
@@ -2019,6 +2535,9 @@ sub print_helpfile{
 
     --samtools_path        The path to your Samtools installation, e.g. /home/user/samtools/. Does not need to
                            be specified explicitly if Samtools is in the PATH already.
+
+    --parallel <INT>       The number of processes reading a BAM file, which they share out in chunks. The
+                           results are the same with any number. Default: 1.
 
     --verbose              Verbose output (for debugging).
 
