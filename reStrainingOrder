@@ -346,7 +346,7 @@ sub process_masked_BAM_file{
 		++$count_N_containing;
 		my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
 		unless ($consistent){
-		    warn "Skipping read $id and any other reads with no sequence or an MD tag that does not match the CIGAR ($why)\n" unless ($malformed);
+		    warn "Skipping read $id ($why); further malformed reads in this file are skipped without a warning\n" unless ($malformed);
 		    ++$malformed;
 		    next;
 		}
@@ -429,7 +429,7 @@ sub process_masked_BAM_file{
     warn "Processed $count read alignments in total\n";
     warn "Reads were unaligned and hence skipped: $unmapped ($perc_unmapped%)\n";
     warn "Reads were secondary or supplementary alignments and hence skipped: $secondary_supplementary ($perc_secondary%)\n";
-    warn "Reads had no sequence or an MD tag that did not match the CIGAR, and were skipped: $malformed ($perc_malformed%)\n";
+    warn "Reads were malformed (no sequence or CIGAR, or a sequence, CIGAR and MD tag that disagree) and hence skipped: $malformed ($perc_malformed%)\n";
     warn "$unassigned reads were unassignable ($perc_unassigned%)\n";
     warn "$genome1 reads were specific for genome 1 ($perc_genome1%)\n";
     warn "$genome2 reads were specific for genome 2 ($perc_genome2%)\n";
@@ -443,7 +443,7 @@ sub process_masked_BAM_file{
     print REPORT "Processed $count read alignments in total\n";
     print REPORT "Reads were unaligned and hence skipped: $unmapped ($perc_unmapped%)\n";
     print REPORT "Reads were secondary or supplementary alignments and hence skipped: $secondary_supplementary ($perc_secondary%)\n";
-    print REPORT "Reads had no sequence or an MD tag that did not match the CIGAR, and were skipped: $malformed ($perc_malformed%)\n";
+    print REPORT "Reads were malformed (no sequence or CIGAR, or a sequence, CIGAR and MD tag that disagree) and hence skipped: $malformed ($perc_malformed%)\n";
     print REPORT "$unassigned reads were unassignable ($perc_unassigned%)\n";
     print REPORT "$genome1 reads were specific for genome 1 ($perc_genome1%)\n";
     print REPORT "$genome2 reads were specific for genome 2 ($perc_genome2%)\n";
@@ -701,7 +701,7 @@ sub read_is_consistent{
     return (0,'no sequence') if ($sequence eq '*');
     return (0,'no CIGAR') if ($cigar eq '*');
     return (0,'CIGAR not in SAM format') unless ($cigar =~ /^(?:\d+[MIDNSHP=X])+$/);
-    return (0,'MD tag not in SAM format') unless ($md_tag =~ /^\d+(?:(?:[A-Za-z]|\^[A-Za-z]+)\d+)*$/);
+    return (0,'MD tag not in SAM format') unless ($md_tag =~ /^\d+(?:(?:[A-Z]|\^[A-Z]+)\d+)*$/);
 
     my ($cigar_aligned,$query) = (0,0);
     my @cigar_dels;

@@ -9,18 +9,18 @@
 
 ### reStrainingOrder
 
-- Fixed a crash at the end of every run with `--output_dir`. Addressed in [#13](https://github.com/FelixKrueger/reStrainingOrder/pull/13).
+- Fixed a crash at the end of every run with `--output_dir`, and the HTML report now covers only the current run. Addressed in [#13](https://github.com/FelixKrueger/reStrainingOrder/pull/13).
 - Inputs that are not `.sam` or `.bam` are now refused instead of being overwritten by their own report. Addressed in [#14](https://github.com/FelixKrueger/reStrainingOrder/pull/14).
 - The strain table is now sorted numerically, with ties in strain order. Addressed in [#15](https://github.com/FelixKrueger/reStrainingOrder/pull/15).
 - The word `sorted.` is now dropped from report names only where it starts a word. Addressed in [#17](https://github.com/FelixKrueger/reStrainingOrder/pull/17).
 - With several input files, each file is now scored on its own reads only. Addressed in [#19](https://github.com/FelixKrueger/reStrainingOrder/pull/19).
 - Bismark files are now detected from any `@PG` line, not only the last one. Addressed in [#20](https://github.com/FelixKrueger/reStrainingOrder/pull/20).
 - One bisulfite branch now counts an unexpected base as OTHER, like the others. Addressed in [#21](https://github.com/FelixKrueger/reStrainingOrder/pull/21).
-- Reads with soft clips, splices or indels are now scored, so far fewer reads are reported as not containing one of the expected bases. Addressed in [#22](https://github.com/FelixKrueger/reStrainingOrder/pull/22).
+- Reads with soft clips, splices or indels are now scored, so fewer reads are reported as not containing one of the expected bases. Addressed in [#22](https://github.com/FelixKrueger/reStrainingOrder/pull/22).
 - The strain tallies and hybrid detection are much faster and use far less memory, and a malformed row in the SNP file now stops the run. Addressed in [#23](https://github.com/FelixKrueger/reStrainingOrder/pull/23).
 - Blank lines in the SNP file are now skipped, and errors in it name the right line.
 - Secondary and supplementary alignments are now skipped and counted in the report.
-- Reads with no sequence, or with an MD tag that does not match the CIGAR, are now skipped and counted in the report.
+- Reads at a SNP position that have no sequence or CIGAR, or whose sequence, CIGAR and MD tag disagree, are now skipped and counted in the report.
 
 ## Changelog for version 0.4.0 [release on 12 April 2023]
 
