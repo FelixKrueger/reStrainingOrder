@@ -100,7 +100,7 @@ if ($nmasking){
 warn "\n";
 close REPORT;
 
-warn "All done. Genome(s) are now ready to be indexed with your favourite aligner!\nFYI, aligners known to work with reStrainingOrder are Bowtie2, Tophat, STAR, HISAT2, HiCUP and Bismark (STAR and HISAT2 require disabling soft-clipping, please check the manual for details)\n\n";      
+warn "All done. Genome(s) are now ready to be indexed with your favourite aligner!\nFYI, aligners known to work with reStrainingOrder are Bowtie2, Tophat, STAR, HISAT2, HiCUP and Bismark\n\n";      
 
 
 
@@ -258,7 +258,7 @@ sub read_snps {
     }
     warn "Reading SNPs from file $file\n";
     
-    open (IN,$file) or die $!;
+    open (IN,'<',$file) or die "Failed to read SNP file '$file': $!\n";
     $_ = <IN>; # chromosome name header line
     while (<IN>) {
 	    $_ =~ s/\r//; # Windows line endings...
@@ -273,9 +273,8 @@ sub read_snps {
     # sorting snps
     @snps = sort {$a->[0] <=> $b->[0]} @snps;
 
-    return \@snps;
-    
     close IN or warn "Failed to close filehandle IN for file $file: $!\n\n";
+    return \@snps;
 
 }
 
@@ -286,10 +285,10 @@ sub filter_relevant_SNP_calls_from_VCF{
     warn "Now reading from VCF file $vcf_file\n";
 	# warn "STRAIN is: $strain\n\n"; sleep(10);
     if ($vcf_file =~ /gz$/){
-	   open (IN,"gunzip -c $vcf_file |") or die "Failed to open file '$vcf_file': $!\n";
+	   open (IN,'-|','gunzip','-c',$vcf_file) or die "Failed to open file '$vcf_file': $!\n";
     } 
     else{
-	   open (IN, $vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
+	   open (IN,'<',$vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
     }
     
     my $matrix_file;
@@ -303,7 +302,11 @@ sub filter_relevant_SNP_calls_from_VCF{
 
     ### Printing the SNP matrix to this file, which will be important for the reStrainingOrder process
     warn "Writing a SNP matrix for chromosome 1 for all strains to $matrix_file\n\n";
-    open (THEMATRIX,"| gzip -c - > $matrix_file") or die "Failed to write to file '$matrix_file': $!\n";
+    my $gzip_pid = open (THEMATRIX,'|-') // die "Failed to start gzip for '$matrix_file': $!\n";
+    unless ($gzip_pid){
+		open (STDOUT,'>',$matrix_file) or die "Failed to write to file '$matrix_file': $!\n";
+		exec ('gzip','-c') or die "Failed to run gzip: $!\n";
+    }
 
     print THEMATRIX join ("\t","Chromosome","Position","REF","ALT");
      foreach my $index (sort {$a <=> $b} keys %strains){
@@ -343,6 +346,7 @@ sub filter_relevant_SNP_calls_from_VCF{
 
     my $last_chr;
 
+    my $left_early = 0; # gunzip is stopped by SIGPIPE when the loop leaves before the end of the VCF
     while (<IN>){
     	$_ =~ s/(\r|\n)//g; # removing end of line characters
         
@@ -426,6 +430,7 @@ sub filter_relevant_SNP_calls_from_VCF{
         # warn "$chr , $pos , $ref , $alt\n"; sleep(1);
         unless ($chr eq '1' or $chr eq 'chr1'){ # Ensembl or UCSC names, as for THE MATRIX below
             warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
+            $left_early = 1;
             last;
         }
 
@@ -622,6 +627,18 @@ sub filter_relevant_SNP_calls_from_VCF{
         # warn "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
     }
 
+    if ($left_early){
+		close IN;
+    }
+    else{
+		unless (close IN){
+		    # gzip exits 2 for warnings such as trailing garbage, after the data was read in full
+		    die "Failed to read '$vcf_file' completely (",child_status(),"); the file may be truncated or corrupt\n" unless ($? >> 8 == 2 and !($? & 127));
+		    warn "gunzip gave a warning for '$vcf_file', but its data was read in full\n";
+		}
+    }
+    close THEMATRIX or die "Failed to write '$matrix_file' (gzip ",child_status(),")\n";
+
     # Writing a report file
     my $report = "reStrainingOrder_SNP_filtering_report.txt";
     open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
@@ -665,10 +682,10 @@ sub detect_chroms{
     my @chrom;
     
     if ($vcf_file =~ /gz$/){
-	open (DETECT,"gunzip -c $vcf_file |") or die "Failed to open file '$vcf_file': $!\n";
+	open (DETECT,'-|','gunzip','-c',$vcf_file) or die "Failed to open file '$vcf_file': $!\n";
     }
     else{
-	open (DETECT, $vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
+	open (DETECT,'<',$vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
     }
     
     # warn "Detecting chromosomes from file '$vcf_file'\n\n";
@@ -699,10 +716,10 @@ sub detect_strains{
     my %strains; # detecting the available strains from the VCF file
     
     if ($vcf_file =~ /gz$/){
-	open (STRAIN,"gunzip -c $vcf_file |") or die "Failed to open file '$vcf_file': $!\n";
+	open (STRAIN,'-|','gunzip','-c',$vcf_file) or die "Failed to open file '$vcf_file': $!\n";
     }
     else{
-	open (STRAIN, $vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
+	open (STRAIN,'<',$vcf_file) or die "Failed to read Input VCF file '$vcf_file': $!\n";
     }
     
     # warn "Detecting strains from file '$vcf_file'\n\n";
@@ -758,7 +775,7 @@ sub read_genome_into_memory{
 
     foreach my $chromosome_filename (@chromosome_filenames){
 
-	open (CHR_IN,$chromosome_filename) or die "Failed to read from sequence file $chromosome_filename $!\n";
+	open (CHR_IN,'<',$chromosome_filename) or die "Failed to read from sequence file $chromosome_filename $!\n";
 	### first line needs to be a fastA header
 	my $first_line = <CHR_IN>;
 	chomp $first_line;
@@ -936,6 +953,14 @@ VERSION
 }
 
 
+
+# How a child process ended, from $?
+sub child_status{
+    return 'could not be run' if ($? == -1);
+    return 'killed by signal '.($? & 127) if ($? & 127);
+    return 'exit status '.($? >> 8);
+}
+
 sub print_helpfile{
   print <<EOF
 
@@ -946,7 +971,7 @@ file: 'mgp_REL2021_snps.vcf.gz') and generate a new multi-strain genome version 
 SNPs in any of the deeply sequenced straind (currently ~51) are masked by the ambiguity nucleobase 'N' (N-masking).
 
 The resulting .fa files are ready to be indexed with your favourite aligner. Proved and tested aligners include Bowtie2,
-STAR, HISAT2 and Bismark. Please note that STAR and HISAT2 may require you to disable soft-clipping.
+STAR, HISAT2 and Bismark.
 
 For more information on the reStraining genome preparation process, please refer to the User Guide at:
 https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#running-restraining

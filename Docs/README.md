@@ -171,25 +171,23 @@ Here I will only briefly mention a few aspects that affect the alignment step (i
 
 #### Alignments with Bowtie2
 
-The output format of Bowtie2 is compatible with reStrainingOrder in its default (= end-to-end) mode. Alignments in `--local` mode are not supported.
+The output format of Bowtie2 is compatible with reStrainingOrder, in end-to-end as well as `--local` mode.
 
 #### Alignments with Bismark
 
-The output format of Bismark files with either Bowtie2 or HISAT2 are generally compatible with reStrainingOrder in their default mode (end-to-end mapping). Alignments in `--local` mode are not supported.
+The output format of Bismark files with either Bowtie2 or HISAT2 are generally compatible with reStrainingOrder, in end-to-end as well as `--local` mode.
 
 #### Alignments with HISAT2:
 
-DNA or RNA alignment files produced by [HISAT2](https://github.com/infphilo/hisat2 "HISAT2") also work well if you make sure that HISAT2 doesn’t perform soft-clipping. At the time of writing HISAT2 does perform soft-clipping (CIGAR operation: `S`) by default, so you need to specify the option `--no-softclip`.
+DNA or RNA alignment files produced by [HISAT2](https://github.com/infphilo/hisat2 "HISAT2") also work well in HISAT2's default mode; soft-clipped reads are scored too.
 
 #### RNA-Seq alignments with STAR: 
 
 Alignment files produced by the Spliced Transcripts Alignment to a Reference [(STAR)](https://github.com/alexdobin/STAR/ "STAR") aligner also should also work well, however a few steps need to be adhered to make this work:
 
-**1)** Since reStrainingOrder only recognises the CIGAR operations M, I, D and N, alignments need to be run in end-to-end mode and not using local alignments (which may result in soft-clipping). This can be accomplished using the option: `--alignEndsType EndToEnd`
+**1)** reStrainingOrder requires the `MD:Z:` field of the BAM alignment to work out mismatches involving masked N positions. Since STAR doesn’t report the `MD:Z:` field by default it needs to be instructed to do so, e.g.: `--outSAMattributes NH HI NM MD`
 
-**2)** reStrainingOrder requires the `MD:Z:` field of the BAM alignment to work out mismatches involving masked N positions. Since STAR doesn’t report the `MD:Z:` field by default it needs to be instructed to do so, e.g.: `--outSAMattributes NH HI NM MD`
-
-**3)** To save some time and avoid having to sort the reads by name, STAR can be told to leave R1 and R2 following each other in the BAM file using the option: `--outSAMtype BAM Unsorted`
+**2)** To save some time and avoid having to sort the reads by name, STAR can be told to leave R1 and R2 following each other in the BAM file using the option: `--outSAMtype BAM Unsorted`
 
 #### Alignments with BWA
 
