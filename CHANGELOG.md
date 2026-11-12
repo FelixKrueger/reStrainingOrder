@@ -1,6 +1,8 @@
 # reStrainingOrder Changelog
 
-## Changelog for version 0.5.0 [unreleased]
+## Changelog for version 0.5.0 [release on 12 November 2026]
+
+Bug fixes from a review of all three tools, much faster and leaner strain and hybrid detection, and stricter handling of malformed input.
 
 ### reStraining
 
