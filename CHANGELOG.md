@@ -18,9 +18,9 @@
 - One bisulfite branch now counts an unexpected base as OTHER, like the others. Addressed in [#21](https://github.com/FelixKrueger/reStrainingOrder/pull/21).
 - Reads with soft clips, splices or indels are now scored, so fewer reads are reported as not containing one of the expected bases. Addressed in [#22](https://github.com/FelixKrueger/reStrainingOrder/pull/22).
 - The strain tallies and hybrid detection are much faster and use far less memory, and a malformed row in the SNP file now stops the run. Addressed in [#23](https://github.com/FelixKrueger/reStrainingOrder/pull/23).
-- Blank lines in the SNP file are now skipped, and errors in it name the right line.
-- Secondary and supplementary alignments are now skipped and counted in the report.
-- Reads at a SNP position that have no sequence or CIGAR, or whose sequence, CIGAR and MD tag disagree, are now skipped and counted in the report.
+- Blank lines in the SNP file are now skipped, and errors in it name the right line. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
+- Secondary and supplementary alignments are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
+- Reads at a SNP position that have no sequence or CIGAR, or whose sequence, CIGAR and MD tag disagree, are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
 
 ## Changelog for version 0.4.0 [release on 12 April 2023]
 
