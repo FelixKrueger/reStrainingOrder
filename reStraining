@@ -5,6 +5,7 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use Cwd;
+use POSIX ();
 
 ## This program is Copyright (C) 2018-23, Felix Krueger (fkrueger@altoslabs.com)
 
@@ -36,7 +37,7 @@ use Cwd;
 my $pipeline_version = '0.4.0';
 my $parent_dir = getcwd();
 my %strains;
-my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7) = process_commandline ();
+my ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7,$parallel) = process_commandline ();
 
 my %snps; # storing all filtered SNPs
 
@@ -72,10 +73,12 @@ print join ("\t",@chroms),"\n\n";
 
 ### Storing the entire genome sequence
 my %chromosomes; # genomic sequence
-read_genome_into_memory($parent_dir);
+# The parallel filtering reads the genome afterwards, so the processes it starts are small
+read_genome_into_memory($parent_dir) if ($parallel == 1);
 
 ### Determining and Filtering homozygous high-confidence SNPs for the strain in question
 filter_relevant_SNP_calls_from_VCF(); # the last number is the strain identity, here the first strain
+read_genome_into_memory($parent_dir) if ($parallel > 1);
 warn "Finished filtering and writing out SNPs\n\n";
 
 ### Create modified genome
@@ -123,70 +126,56 @@ sub create_modified_chromosome {
 	   die "[FATAL ERROR] Please ensure that the same version of the genome is used for both VCF annotations and reference genome (FastA files). Exiting...\n\n";
     }
 
-    my $n_sequence = $chromosomes{$chr};
+    my $n_sequence = \$chromosomes{$chr}; # changed in place: a copy would hold a second chromosome in memory
 
-    warn "Getting SNPs for chromosome $chr...\n";
-    my @snps = @{read_snps($chr)};
-    warn "done.\n";
-    
-    unless (@snps){
-	   @snps = ();
-	   warn "Clearing SNP array...\n"
-    }
-    
     my $count = 0;
-
-    my $lastPos = 0;
-
     my $already = 0;
     my $warn = 0;
     my $new_n = 0;
     my $new_snp = 0;
 
-    foreach my $snp (@snps) {
+    warn "Getting SNPs for chromosome $chr...\n";
+    # The SNPs are applied in the order of the file, keeping the first one at each position as the sort by position
+    # did (Perl's sort is stable), but without holding them all in memory: one bit per position remembers which were seen
+    my $seen = '';
+    vec ($seen,0,1) = 1; # as the sort did, position 0 counted as seen
+    my $in = open_snps($chr);
+    while ($in and defined ($_ = <$in>)) {
+	    $_ =~ s/\r//; # Windows line endings...
+	    chomp;
+	    next unless ($_);
+	    my (undef,$pos,$ref_allele,$snp_allele) = split(/\t/);
+
     	# Apply the SNP
     	++$count;
-    	# warn "$snp->[0]\t$snp->[1]/$snp->[2]\n";
-    	if ($snp->[0] == $lastPos) {
-    	    # Duplicate SNP
-    	    next;
-    	}
-          
-    	$lastPos = $snp->[0];
-    	
-    	# Check if the reference base is the same as the SNP base
-    	#if (substr ($sequence,$snp->[0]-1,1) eq $snp->[2]) {
-    	    # warn "Skipping $snp->[0] $snp->[1]/$snp->[2] since the ref and SNP base are the same\n";
-    	 #   ++$already;
-    	 #   next;
-    	#}
-          
+    	next if (vec ($seen,$pos,1)); # Duplicate SNP
+    	vec ($seen,$pos,1) = 1;
+
     	# Check the reference base is correct
-    	if (substr ($n_sequence,$snp->[0]-1,1) ne $snp->[1]) {
-    	    warn "Skipping $snp->[0] $snp->[1]/$snp->[2] since the reference base didn't match\n";
+    	if (substr ($$n_sequence,$pos-1,1) ne $ref_allele) {
+    	    warn "Skipping $pos $ref_allele/$snp_allele since the reference base didn't match\n";
     	    $warn++;
     	    next;
     	}
-          
+
     	### Ref/Alt bases are matching, so we can proceed to changing the ref base for the SNP base or Ns (N-masking)
-    	
-    	### N-masking 
     	if ($nmasking){ # default
-    	    my $return =  substr($n_sequence,($snp->[0])-1,1,'N');  # Replacing the base with 'N'
+    	    my $return =  substr($$n_sequence,$pos-1,1,'N');  # Replacing the base with 'N'
     	    unless ($return){
     		  warn "Replacing failed...\n";
     	    }
     	    ++$new_n;
     	}
-	
     }
-  
+    warn "done.\n";
+    warn "Clearing SNP array...\n" unless ($count);
+
     $new_n_total += $new_n;
     $new_snp_total += $new_snp;
      
     $already_total += $already;
     if ($nmasking){ 
-	   write_SNP_chromosome($chr,$n_sequence,1);
+	   write_SNP_chromosome($chr,$$n_sequence,1);
     }
     
     warn "$count SNPs total for chromosome $chr\n";
@@ -240,10 +229,10 @@ sub write_SNP_chromosome {
 }
 
 
-sub read_snps {
-    
+# Opens the SNP file written for one chromosome, past its header line (or returns nothing if there is none)
+sub open_snps {
+
     my ($chr) = @_;
-    my @snps = ();
     my $file = "${parent_dir}/SNPs_directory/chr$chr.txt";
 
     ### If the SNP folder doesn't exist we can be certain that something is going wrong
@@ -254,32 +243,18 @@ sub read_snps {
     ### not sure but I think for some chromosomes there might not be any SNP files, e.g. chr MT or chrY. In this case the sequence is written out again unmodified
     unless (-e $file) {
 	   warn "Couldn't find SNP file for chromosome '$chr' '$file' didn't exist. Skipping...\n";
-	   return \@snps;
+	   return;
     }
     warn "Reading SNPs from file $file\n";
-    
-    open (IN,$file) or die $!;
-    $_ = <IN>; # chromosome name header line
-    while (<IN>) {
-	    $_ =~ s/\r//; # Windows line endings...
-	    chomp;
-	    # warn "$_\n"; sleep(1);
-	    next unless ($_);
-	    my (undef,$pos,$ref_allele,$snp_allele) = split(/\t/);
-	    # warn  "$pos , $ref_allele , $snp_allele\n"; sleep(1);
-    	push @snps,[$pos,$ref_allele,$snp_allele];
-    }
 
-    # sorting snps
-    @snps = sort {$a->[0] <=> $b->[0]} @snps;
-
-    return \@snps;
-    
-    close IN or warn "Failed to close filehandle IN for file $file: $!\n\n";
-
+    open (my $in,$file) or die $!;
+    my $header = <$in>; # chromosome name header line
+    return $in;
 }
 
 ###
+
+my ($passed_call,$last_chr); # set from the VCF file, and shared with the processes filtering it
 
 sub filter_relevant_SNP_calls_from_VCF{
     
@@ -341,13 +316,14 @@ sub filter_relevant_SNP_calls_from_VCF{
         print {$fhs{$chr}} ">$chr\n";
     }  
 
-    my $last_chr;
-
+    # A strain call of 1/1 whose FI field (the 8th in v7: GT:PL:DP:ADF:ADR:AD:GQ:FI, the 6th in v8: GT:PL:DP:AD:GQ:FI) is 1
+    my $fields_before_fi = $v7 ? 6 : 4;
+    $passed_call = qr{\t1/1(?::[^:\t]*){$fields_before_fi}:1(?![^:\t])};
+    my %tally = (count => 0, matrix => 0, discarded => 0, indel => 0, skipped => 0);
+    # Header lines first: they come before any position
     while (<IN>){
-    	$_ =~ s/(\r|\n)//g; # removing end of line characters
-        
+    	tr/\r\n//d; # removing end of line characters
         next if ($_ =~ /^\#\#/); # filters out header information lines
-    	# warn "$_\n"; sleep(1);
         if ($_ =~ /^\#CHROM/){ # Table Header
     	
         	# my ($name) = (split /\t/)[$strain_index];
@@ -386,243 +362,28 @@ sub filter_relevant_SNP_calls_from_VCF{
     	    #warn "Analysing SNP fields for name >$name<\n";
     	    next;	
     	}
-    	$count++;
-    	if ($count%1000000 ==0){
-    	    warn "processed $count lines\n";
-    	}
-	    # last if ($count == 1000);
-		# warn "$_\n"; sleep(1);
-        # foreach my $index(0..$#strains){
-        # next if ($index <= 8); 
-        # $strains{$strains[$index]} = $index; 
-        # warn "$index\t$strains[$index]\n";
-        #   }
-        # }
-    
-	    # This is the format of the VCF (v5) file
-        #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  129P2_OlaHsd    129S1_SvImJ     129S5SvEvBrd    AKR_J   A_J     BALB_cJ BTBR_T+_Itpr3tf_J       BUB_BnJ C3H_HeH C3H_HeJ C57BL_10J       C57BL_6NJ       C57BR_cdJ      C57L_J  C58_J   CAST_EiJ        CBA_J   DBA_1J  DBA_2J  FVB_NJ  I_LnJ   KK_HiJ  LEWES_EiJ       LP_J    MOLF_EiJ        NOD_ShiLtJ      NZB_B1NJ        NZO_HlLtJ       NZW_LacJ        PWK_PhJ RF_J    SEA_GnJ SPRET_EiJ     ST_bJ    WSB_EiJ ZALENDE_EiJ
-        
-        # This is the format of the v7 VCF file:
-        #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.RIII	BALB_cByJ	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH	C3H_HeJ	C57BL_10J	C57BL_10SnJ	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	CE_J	CZECHII_EiJ	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	JF1_MsJ	KK_HiJ	LEWES_EiJ	LG_J	LP_J	MA_MyJ	MOLF_EiJ	NOD_ShiLtJ	NON_LtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PL_J	PWK_PhJ	QSi3	QSi5	RF_J	RIIIS_J	SEA_GnJ	SJL_J	SM_J	SPRET_EiJ-ST_bJ	SWR_J	WSB_EiJ	ZALENDE_EiJ
-        
-        # 10 04 2023: This is the format of the v8 VCF file ("mgp_REL2021_snps.vcf.gz"):
-        ### #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.RIII	BALB_cByJ	BALB_cJ	BTBR_T+_Itpr3tf_J	BUB_BnJ	C3H_HeH
-        ###	C3H_HeJ	C57BL_10J	C57BL_10SnJ	C57BL_6NJ	C57BR_cdJ	C57L_J	C58_J	CAST_EiJ	CBA_J	CE_J	CZECHII_EiJ	DBA_1J	DBA_2J	FVB_NJ	I_LnJ	JF1_MsJ	KK_HiJ	LEWES_EiJ	LG_J
-        ### LP_J	MAMy_J	MOLF_EiJ	NOD_ShiLtJ	NON_LtJ	NZB_B1NJ	NZO_HlLtJ	NZW_LacJ	PL_J	PWK_PhJ	QSi3	QSi5	RF_J	RIIIS_J	SEA_GnJ	SJL_J	SM_J	SPRET_EiJ	ST_bJ	SWR_J	WSB_EiJ	ZALENDE_EiJ
-
-        my ($chr,$pos,undef,$ref,$alt,undef,undef,$info,$format,@strains) = (split /\t/);
-
-		#  warn "genotype: $gt\nfilter:   $fi\n";
-		#  warn "$fi\n"; sleep(1);
-        unless (defined $last_chr){
-            $last_chr = $chr; # only once
-            warn "Processing first chromosome (chr $chr)\n";
-        }
-        
-        unless ($chr eq $last_chr){
-            warn "Reached a new chromosome (chr $chr)\n";
-            $last_chr = $chr; 
-        }
-        # warn "$chr , $pos , $ref , $alt\n"; sleep(1);
-        unless ($chr eq '1' or $chr eq 'chr1'){ # Ensembl or UCSC names, as for THE MATRIX below
-            warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
-            last;
-        }
-
-		# skipping if the reference base is not well defined in Black6
-		if ($ref =~ /[^ATCG]/){ # reference base contained any non A, C, T, G characters or more than one base
-			# warn "ref was: $ref; skipping\n";
-            ++$positions_skipped;
-			next;
-		}
-		
-        # The v7 file contains both SNPs as wella s INDELS. We are only interested in SNPs here, so removing all INDELs
-        if ($v7){
-            if ($info =~ /INDEL/){
-                # warn "This variant is an INDEL:\n$info\nRemoving...\n"; sleep(1);
-                ++$indel_pos;
-                next;
-            }
-        }
-
-		# skipping if the SNP is not well defined in the strain of interest
-		# if ($alt =~ /[^ATCG,]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
-        # SNPs may also have more than 1 separate ALT bases. To get the maximum out of the SNP analysis, one 
-        # should probably include these positions. For reStrainingOrder it should be enough to only look at 
-        # positions that have one REF and one ALT base.        
-    
-		if ($alt =~ /[^ATCG]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
-            # warn "SNP was: $alt; skipping\n";
-			++$positions_skipped;
-			# next;
-            # warn "ALT base not clearly defined:\t$_\n"; sleep(1);
-            next;
-		}
-       
-        # Rather than looping through all of the strains to find positions that are unique to one strain or another
-        # (the first method), we are generating a matrix of all possible SNPs for currently Chr 1 for all strains
-        my @straincalls;
-        
-        # The first 8 fields are irrelevant: #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  
-		foreach my $index (0..$#strains){
-        	# print "INDEX: $index\tSTRAIN: $strains{$index}->{strain}\t\t$strains[$index]\n"; sleep(1);
-            my ($gt,$gq,$dp,$mq0f,$gp,$pl,$an,$mq,$dv,$dp4,$sp,$sgb,$pv4,$fi,$adf,$adr,$ad);
-        
-            # for v5: $strain is in the form: GT:GQ:DP:MQ0F:GP:PL:AN:MQ:DV:DP4:SP:SGB:PV4:FI
-	        # for v7: $strain is in the form: GT:PL:DP:ADF:ADR:AD:GQ:FI
-            # for v8: $strain is in the form: GT:PL:DP:AD:GQ:FI   # Now te default (as of 10 April 2023)
-
-            if ($v7){ # the v7 version, currently experimental
- 		        ($gt,$pl,$dp,$adf,$adr,$ad,$gq,$fi) = split/:/,$strains[$index];
-    	    }
-            else{ # mgp v5, default
-                ($gt,$pl,$dp,$ad,$gq,$fi) = split/:/,$strains[$index]; 
-            }
-
-            #warn "genotype: $gt\nfilter:   $fi\n";
-        	#warn "$fi\n"; sleep(1);
-        	# $gt is the Genotype:
-        	# print "CHR: $chr\tPOS: $pos\tREF: $ref\tALT: $alt\tGT: $gt\tFILTER: $fi\t$strains{$index}\t$strains[$index]\n"; # sleep(1);
-        	# '.'   = no genotype call was made
-        	# '0/0' = genotype is the same as the reference genome
-        	# '1/1' = homozygous alternative allele; can also be '2/2', '3/3', etc. if more than one alternative allele is present
-        	# '0/1' = heterozygous genotype; can also be '1/2', '0/2', etc.
-        	
-        	# $fi is FILTER, 1 for high confidence SNP, or 0 for low confidence
-        	
-        	### We are only looking for 1/1, (2/2 or 3/3 calls not in the first instance) and filter for high confidence as well
-        	
-            my $pos_fails = 0;
-            my $strain_call = 0; # this is a boolean flag for SNP present yes/no
-            
-            # if (!defined $fi){
-            #     warn "$1 was not extracted properly, please fix!\n";
-            # }
-	
-            # Looking at the Filter tag first
-            if ($fi eq 1){
-            	# warn "FI was high confidence ($fi)\n";
-                # fine
-            }
-            else{
-                # warn "FI was low confidence ($fi)\n";
-                $pos_fails = 1;
-            }
-                
-        	# Filtering for genotype. If the genotype is the same as the reference we will move
-            # on to the next position and/or strain
-        	if ($gt eq '0/0'){
-        	    # warn "same as reference, next...\n";
-        	}
-			
-			elsif ($gt eq '1/1'){
-        	    unless($pos_fails){
-                    $strain_call = 1;  # This is the only time at which we are setting the $strain_call to TRUE
-                }
-        	    #if ($alt =~ /[^ATCG]/){ 	 
-            	#	warn "homozygous alternative allele: >$alt<\n";
-            	#	my ($new_alt) = (split (/,/,$alt))[0];
-            	#	 warn "New ALT is $new_alt\n";
-            	#	 warn "genotype: $gt\nfilter:   $fi\n\n"; sleep(1);
-            	#	$alt = $new_alt;  
-        	    #}
-        	}
-        	elsif ($gt eq '2/2'){
-                warn "$gt\n";
-        	    die "Should never happen\n";
-                
-                # ++$homozygous;
-        	    if ($alt =~ /[^ATCG]/){ 	 
-            		# warn "homozygous alternative allele: >$alt<\n";
-            		my ($new_alt) = (split (/,/,$alt))[1];
-            		# warn "New ALT is $new_alt\n\n"; sleep(1);
-            		$alt = $new_alt;    
-        	    }
-        	}
-        	elsif ($gt eq '3/3'){
-                warn "$gt\n";
-                die "Should never happen\n";
-        	    # ++$homozygous;
-        	    if ($alt =~ /[^ATCG]/){
-        		    # warn "homozygous alternative allele: >$alt<\n";
-        		    my ($new_alt) = (split (/,/,$alt))[2];                                                                                                        
-         		    # warn "New ALT is $new_alt\n\n"; sleep(1);                                                                             
-        		    $alt = $new_alt;   
-        	    }
-        	}
-        	else{
-        	    # this could be positions without genotype call ./. or any form of heterozygous call. 
-			}
-    
-            # Adding the boolean strain call to a temporary array
-            push @straincalls, $strain_call;
-            # warn "$SNP\n";sleep(1);
-            # if (defined $unique_snp){
-                #warn "SNP was already defined by a previous strain. Failing this position out...\n";
-            #    $pos_fails++;
-		    #		last;
-            #   }
-            # else{
-          
-				# Output example
-				# Variation ID    Chromosome name Position on Chromosome (bp)     Strand  Allele
-				# rs2020560       10      98212004        1       A/T
-				# my $SNP = join ("\t",$strains{$index}->{strain},$chr,$pos,$ref,$alt,$strain_call);
-                # warn "CALL: $SNP\n~~~~~~~~~~~~~~~~~~\n"; sleep(1);
-            #    ++$unique_single_strain;       
-				#$unique_strain = $strains{$index}->{strain};
-               # $unique_snp = $SNP;
-              #  $unique_index = $index;
-                #warn  "SNP was not present yet, storing it (for strain $strains{$index}->{strain})\n";
-            #}
-
-            # if (exists $snps{$location} ){
-            #   warn "SNP $snps{$location} position was present already\n";
-            # }
-            # else{
-            #   $snps{$location} = $SNP;
-            #   warn  "High confidence SNP for strain $strains{$index}\n";
-            # }
-        	# print {$fhs{$chr}} join ("\t",$count,$chr,$pos,'1',join ("\/",$ref,$alt),$strain),"\n";
-    	}
-
-        # Ensure that at least one strain had a high confidence SNP call
-        my $should_stay = 0;
-        foreach my $call(@straincalls){
-            # warn "$call"; 
-            if ($call eq 1){
-                ++$should_stay;
-                last;
-            }
-        }
-        # sleep(1);
-        # Now that we have processed all strains we can print this position to THE MATRIX
-        if ($should_stay){  
-            my $snp = join ("\t",$chr,$pos,$ref,$alt,@straincalls);
-
-            # Only printing out positions for chromosome 1 to THE MATRIX
-            # Will print for Ensembl and UCSC version (changed 22 01 2021)
-	        if ($chr eq 1 or $chr eq "chr1"){
-                print THEMATRIX "$snp\n";	
-                ++$matrix_count;
-            }
-
-            my $location = join (":",$chr,$pos);      
-            # $snps{$location}->{snp} = $snp;
-            #print {$fhs{$chr}} "$snps{$location}->{snp}\n"; # also writing into the SNP folder
-       
-            print {$fhs{$chr}} "$snp\n"; # also writing into the SNP folder
-           
-        }
-        else{
-            ++$positions_discarded;
-        }
-        # $snps{$location}->{strain} = $unique_strain;
-        # $strains{$unique_index}->{count}++;
-        # warn "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
+        last;
     }
 
-    # Writing a report file
+    if (defined $_ and $parallel > 1){
+        filter_VCF_in_parallel("$_\n",\*IN,\%tally,\%fhs);
+    }
+    elsif (defined $_){
+        do {
+            tr/\r\n//d; # removing end of line characters
+            my ($stop,$chr,$snp) = filter_VCF_line($_,\%tally);
+            warn "processed $tally{count} lines\n" if ($tally{count}%1000000 == 0);
+            if ($stop){
+                $_ = undef;
+            }
+            else{
+                write_SNP_line($chr,$snp,\%fhs) if (defined $snp);
+                $_ = <IN>;
+            }
+        } while (defined $_);
+    }
+    ($count,$matrix_count,$positions_discarded,$indel_pos,$positions_skipped) = @tally{qw(count matrix discarded indel skipped)};
+
     my $report = "reStrainingOrder_SNP_filtering_report.txt";
     open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
     
@@ -658,6 +419,248 @@ sub filter_relevant_SNP_calls_from_VCF{
    
 }
 
+
+# Filters one position of the VCF file, adding to the counts in %$tally. Returns 1 first at the first position past
+# chromosome 1, then the chromosome and the line to write if a strain had a high confidence SNP call there
+sub filter_VCF_line{
+    my ($line,$tally) = @_;
+    ++$tally->{count};
+        # the strain calls are left as one string: going over them one by one was most of the run time
+        my ($chr,$pos,undef,$ref,$alt,undef,undef,$info,$format,$calls) = (split /\t/,$line,10);
+
+		#  warn "genotype: $gt\nfilter:   $fi\n";
+		#  warn "$fi\n"; sleep(1);
+        unless (defined $last_chr){
+            $last_chr = $chr; # only once
+            warn "Processing first chromosome (chr $chr)\n";
+        }
+        
+        unless ($chr eq $last_chr){
+            warn "Reached a new chromosome (chr $chr)\n";
+            $last_chr = $chr; 
+        }
+        # warn "$chr , $pos , $ref , $alt\n"; sleep(1);
+        unless ($chr eq '1' or $chr eq 'chr1'){ # Ensembl or UCSC names, as for THE MATRIX below
+            warn "Reached a new chromosome ($chr), but we are currently limiting filtering to chromosome 1\n";
+            return (1);
+        }
+
+		# skipping if the reference base is not well defined in Black6
+		if ($ref =~ /[^ATCG]/){ # reference base contained any non A, C, T, G characters or more than one base
+			# warn "ref was: $ref; skipping\n";
+            ++$tally->{skipped};
+			return (0);
+		}
+		
+        # The v7 file contains both SNPs as wella s INDELS. We are only interested in SNPs here, so removing all INDELs
+        if ($v7){
+            if ($info =~ /INDEL/){
+                # warn "This variant is an INDEL:\n$info\nRemoving...\n"; sleep(1);
+                ++$tally->{indel};
+                return (0);
+            }
+        }
+
+		# skipping if the SNP is not well defined in the strain of interest
+		# if ($alt =~ /[^ATCG,]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
+        # SNPs may also have more than 1 separate ALT bases. To get the maximum out of the SNP analysis, one 
+        # should probably include these positions. For reStrainingOrder it should be enough to only look at 
+        # positions that have one REF and one ALT base.        
+    
+		if ($alt =~ /[^ATCG]/){ # Alt base contained any non A, C, T, G characters or commas which separate several different variants
+            # warn "SNP was: $alt; skipping\n";
+			++$tally->{skipped};
+			# next;
+            # warn "ALT base not clearly defined:\t$_\n"; sleep(1);
+            return (0);
+		}
+       
+        # One call per strain, 1 only for a homozygous ALT genotype (1/1) with a high confidence filter value (FI = 1)
+        $calls //= '';
+        chop $calls while (substr ($calls,-1) eq "\t"); # as split does, ignoring empty trailing fields
+        my $fields = "\t$calls";
+        if (index ($fields,"\t2/2") >= 0 or index ($fields,"\t3/3") >= 0){
+            if ($fields =~ m{\t([23]/[23])(?![^:\t])}){
+                warn "$1\n";
+                die "Should never happen\n";
+            }
+        }
+        my $strain_count = $calls eq '' ? 0 : 1 + ($calls =~ tr/\t//);
+        my $straincalls = "0\t" x $strain_count;
+        chop $straincalls;
+        my $should_stay = 0;
+        my ($strain,$from) = (0,0);
+        while ($fields =~ /$passed_call/g){
+            my $start = $-[0];
+            $strain += substr ($fields,$from,$start - $from + 1) =~ tr/\t//; # the number of the strain whose call matched
+            $from = $start + 1;
+            substr ($straincalls,2 * $strain - 2,1,'1');
+            $should_stay = 1;
+        }
+        # sleep(1);
+        # Now that we have processed all strains we can print this position to THE MATRIX
+        unless ($should_stay){
+            ++$tally->{discarded};
+            return (0);
+        }
+        ++$tally->{matrix} if ($chr eq 1 or $chr eq "chr1"); # Only positions on chromosome 1 go to THE MATRIX (Ensembl or UCSC name)
+        return (0,$chr,join ("\t",$chr,$pos,$ref,$alt,$straincalls));
+}
+
+sub write_SNP_line{
+    my ($chr,$snp,$fhs) = @_;
+    print THEMATRIX "$snp\n" if ($chr eq 1 or $chr eq "chr1");
+    print {$fhs->{$chr}} "$snp\n"; # also writing into the SNP folder
+}
+
+# Shares the VCF positions out between forked workers in large blocks, and writes what they return in the order of the
+# file, so the output is the same as with one process. Once a block reaches a position past chromosome 1, the blocks
+# after it are dropped, as one process would never have read them
+sub filter_VCF_in_parallel{
+    my ($carry,$in,$tally,$fhs) = @_;
+    ($last_chr) = split (/\t/,$carry,2);
+    warn "Processing first chromosome (chr $last_chr)\n";
+
+    my @workers;
+    foreach my $worker (1..$parallel){
+        pipe (my $block_reader,my $block_writer) or die "Failed to create a pipe for worker $worker: $!\n";
+        pipe (my $result_reader,my $result_writer) or die "Failed to create a pipe for worker $worker: $!\n";
+        my $pid = fork;
+        die "Failed to start worker $worker: $!\n" unless (defined $pid);
+        if ($pid == 0){
+            close $_->[1] foreach (@workers); # the main process's ends of the other workers' pipes
+            close $_->[2] foreach (@workers);
+            close $block_writer;
+            close $result_reader;
+            my $ok = eval{
+                while (length (my $block = receive_message($block_reader))){
+                    my %counts = (count => 0, matrix => 0, discarded => 0, indel => 0, skipped => 0);
+                    my $warnings = ''; # passed on with the positions, so the main process gives them in order
+                    local $SIG{__WARN__} = sub { $warnings .= $_[0] };
+                    my $stop = 0;
+                    my @segments; # [chromosome, lines]: one per run of lines on the same chromosome
+                    foreach my $line (split /\n/,$block){
+                        $line =~ tr/\r//d;
+                        ($stop,my $chr,my $snp) = filter_VCF_line($line,\%counts);
+                        last if ($stop);
+                        next unless (defined $snp);
+                        push @segments,[$chr,''] unless (@segments and $segments[-1][0] eq $chr);
+                        $segments[-1][1] .= "$snp\n";
+                    }
+                    send_message($result_writer,join ("\t",@counts{qw(count matrix discarded indel skipped)},$stop,length $warnings,map { ($_->[0],length $_->[1]) } @segments)."\n".$warnings.join ('',map { $_->[1] } @segments));
+                }
+                1;
+            };
+            warn $@ unless ($ok);
+            # _exit, not exit: the output filehandles belong to the main process and must not be flushed a second time
+            POSIX::_exit($ok ? 0 : 1);
+        }
+        close $block_reader;
+        close $result_writer;
+        push @workers,[$pid,$block_writer,$result_reader];
+    }
+
+    # The rest of the file in blocks of whole lines
+    my $next_block = sub{
+        while (1){
+            my $read = read ($in,my $data,8 * 1024 * 1024);
+            die "Failed to read from the VCF file: $!\n" unless (defined $read);
+            $data = $carry.$data;
+            $carry = '';
+            return (length $data ? $data : undef) if ($read == 0);
+            my $cut = rindex ($data,"\n");
+            if ($cut < 0){
+                $carry = $data; # no full line yet
+                next;
+            }
+            $carry = substr ($data,$cut + 1);
+            return substr ($data,0,$cut + 1);
+        }
+    };
+
+    my ($sent,$received,$stopped) = (0,0,0);
+    foreach my $worker (@workers){
+        my $block = $next_block->();
+        last unless (defined $block);
+        send_message($worker->[1],$block);
+        ++$sent;
+    }
+    while ($received < $sent){
+        my $worker = $workers[$received % @workers];
+        my $result = receive_message($worker->[2]);
+        die "A worker stopped without returning its positions, see the messages above\n" unless (length $result);
+        ++$received;
+        next if ($stopped); # blocks past the end of chromosome 1
+        my $nl = index ($result,"\n");
+        my ($count,$matrix,$discarded,$indel,$skipped,$stop,$warnings_length,@segments) = split (/\t/,substr ($result,0,$nl));
+        foreach my $million (int ($tally->{count} / 1000000) + 1 .. int (($tally->{count} + $count) / 1000000)){
+            warn "processed ${million}000000 lines\n";
+        }
+        $tally->{count} += $count;
+        $tally->{matrix} += $matrix;
+        $tally->{discarded} += $discarded;
+        $tally->{indel} += $indel;
+        $tally->{skipped} += $skipped;
+        my $offset = $nl + 1;
+        print STDERR substr ($result,$offset,$warnings_length);
+        $offset += $warnings_length;
+        while (@segments){
+            my ($chr,$length) = splice (@segments,0,2);
+            my $lines = substr ($result,$offset,$length);
+            $offset += $length;
+            print THEMATRIX $lines if ($chr eq 1 or $chr eq "chr1");
+            print {$fhs->{$chr}} $lines; # also writing into the SNP folder
+        }
+        $stopped = $stop;
+        next if ($stopped);
+        my $block = $next_block->();
+        if (defined $block){
+            send_message($worker->[1],$block);
+            ++$sent;
+        }
+    }
+
+    my $failed = 0;
+    foreach my $worker (@workers){
+        my ($pid,$block_writer,$result_reader) = @$worker;
+        send_message($block_writer,''); # nothing left to do
+        close $block_writer;
+        close $result_reader;
+        waitpid ($pid,0);
+        ++$failed if ($?);
+    }
+    die "$failed of the workers failed, see the messages above\n" if ($failed);
+}
+
+# Messages between the main process and the workers: a length, then that many bytes
+sub send_message{
+    my ($fh,$data) = @_;
+    my $message = pack ('N',length $data).$data;
+    my $offset = 0;
+    while ($offset < length $message){
+        my $written = syswrite ($fh,$message,length ($message) - $offset,$offset);
+        die "Failed to write to a worker pipe: $!\n" unless (defined $written);
+        $offset += $written;
+    }
+}
+
+sub receive_message{
+    my ($fh) = @_;
+    my $length = read_bytes($fh,4);
+    return '' unless (length $length == 4); # the other end has gone
+    return read_bytes($fh,unpack ('N',$length));
+}
+
+sub read_bytes{
+    my ($fh,$wanted) = @_;
+    my $data = '';
+    while (length $data < $wanted){
+        my $read = sysread ($fh,$data,$wanted - length $data,length $data);
+        die "Failed to read from a worker pipe: $!\n" unless (defined $read);
+        last if ($read == 0);
+    }
+    return $data;
+}
 
 sub detect_chroms{
     
@@ -759,55 +762,30 @@ sub read_genome_into_memory{
     foreach my $chromosome_filename (@chromosome_filenames){
 
 	open (CHR_IN,$chromosome_filename) or die "Failed to read from sequence file $chromosome_filename $!\n";
-	### first line needs to be a fastA header
-	my $first_line = <CHR_IN>;
-	chomp $first_line;
-	$first_line =~ s/\r//;
-	### Extracting chromosome name from the FastA header
-	my $chromosome_name = extract_chromosome_name($first_line);
-	my $sequence;
+	# One chromosome at a time rather than line by line: each record runs up to the next line starting with '>'
+	local $/ = "\n>";
+	my $first = 1;
+	while (my $record = <CHR_IN>){
+	    chomp $record; # the "\n>" that starts the next chromosome
+	    $record = ">$record" unless ($first); # the '>' went with the end of the previous record
+	    $first = 0;
+	    my $header = $record =~ s/^([^\n]*)\n?// ? $1 : '';
+	    $header =~ s/\r//;
+	    my $chromosome_name = extract_chromosome_name($header);
+	    $record =~ tr/\r\n//d; # removing line endings
+	    $record =~ tr/a-z/A-Z/;
 
-	while (<CHR_IN>){
-	  chomp;
-	  $_ =~ s/\r//; # removing carriage returns if present
-	  if ($_ =~ /^>/){
-	
-	    ### storing the previous chromosome in the %chromosomes hash, only relevant for Multi-Fasta-Files (MFA)
 	    if (exists $chromosomes{$chromosome_name}){
-	      print "chr $chromosome_name (",length $sequence ," bp)\n";
-	      die "Exiting because chromosome name already exists. Please make sure all chromosomes have a unique name!\n";
+		print "chr $chromosome_name (",length $record ," bp)\n";
+		die "Exiting because chromosome name already exists. Please make sure all chromosomes have a unique name!\n";
 	    }
-	    else {
-	      if (length($sequence) == 0){
+	    if (length($record) == 0){
 		warn "Chromosome $chromosome_name in the multi-fasta file $chromosome_filename did not contain any sequence information!\n";
-	      }
-	      print "chr $chromosome_name (",length $sequence ," bp)\n";
-	      $chromosomes{$chromosome_name} = $sequence;
 	    }
-	    ### resetting the sequence variable
-	    $sequence = '';
-	    ### setting new chromosome name
-	    $chromosome_name = extract_chromosome_name($_);
-	  }
-	  else{
-	    $sequence .= uc$_;
-	  }
+	    print "chr $chromosome_name (",length $record ," bp)\n";
+	    $chromosomes{$chromosome_name} = $record;
 	}
-	
- 	### Processing last chromosome of a multi Fasta File or the only entry in case of single entry FastA files
-
-	if (exists $chromosomes{$chromosome_name}){
-	    print "chr $chromosome_name (",length $sequence ," bp)\t";
-	    die "Exiting because chromosome name already exists. Please make sure all chromosomes have a unique name.\n";
-	}
-	else{
-	    if (length($sequence) == 0){
-		warn "Chromosome $chromosome_name in the file $chromosome_filename did not contain any sequence information!\n";
-	    }
-
-	    print "chr $chromosome_name (",length $sequence ," bp)\n";
-	    $chromosomes{$chromosome_name} = $sequence;
-	}
+	close CHR_IN;
     }
     print "\n";
     chdir $cwd or die "Failed to move to directory $cwd\n";
@@ -837,6 +815,7 @@ sub process_commandline{
     my $genome_folder;
     my $v7_MGP_file;
     my $nmasking = 1; # This is the default
+    my $parallel = 1;
     
     my $command_line = GetOptions ('help'        => \$help,
 				   'versions'                    => \$version,
@@ -844,6 +823,7 @@ sub process_commandline{
 				   'nmasking'                    => \$nmasking,
 				   'genome|reference_genome=s'   => \$genome_folder,
                    'v7_VCF'                      => \$v7_MGP_file,
+                   'parallel=i'                  => \$parallel,
 	);
   
     ### EXIT ON ERROR if there were errors with any of the supplied options
@@ -931,7 +911,9 @@ VERSION
     	$genome_build = 'GRCm39';
     }
 
-    return ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7_MGP_file);
+    die "--parallel needs to be at least 1 (was given $parallel)\n" if ($parallel < 1);
+
+    return ($vcf_file,$genome_folder,$nmasking,$genome_build,$v7_MGP_file,$parallel);
 
 }
 
@@ -971,6 +953,9 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 --v7_VCF                      This will use the file 'mgp_REL2005_snps_indels.vcf.gz' for backward compativility.
                               This file contains both SNP and INDEL information, but INDELs are skipped. The v7
                               file contains a number of additional strains, and was released in May2020.
+
+--parallel <INT>              The number of processes filtering the VCF file, each in a block of positions at a time.
+                              The output is the same with any number. Default: 1.
 
 --reference_genome <PATH>     The path to the reference genome, typically the strain 'Black6' (C57BL/6J). The mouse genomes
                               project uses the Ensembl genome build GRCm39, and will likely fail in conjunction with genomes
