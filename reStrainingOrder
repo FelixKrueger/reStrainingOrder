@@ -1928,71 +1928,6 @@ sub check_for_bs{
 }
 
 
-sub test_positional_sorting{
-
-    my $filename = shift;
-    my $samtools_path = shift;
-    warn "\nNow testing Bismark result file $filename for positional sorting\n";
-    sleep(1);
-
-    if ($filename =~ /\.gz$/) {
-	open (TEST,"gunzip -c $filename |") or die "Can't open gzipped file $filename: $!\n";
-    }
-    elsif ($filename =~ /bam$/){ ### this would allow to read BAM files that do not end in *.bam
-	if ($samtools_path){
-	    open (TEST,"$samtools_path view -h $filename |") or die "Can't open BAM file $filename: $!\n";
-	}
-	else{
-	    die "Sorry couldn't find an installation of Samtools. Either specifiy an alternative path using the option '--samtools_path /your/path/', or use a SAM file instead\n\n";
-	}
-    }
-    else{
-	open (TEST,$filename) or die "Can't open file $filename: $!\n";
-    }
-
-    my $count = 0;
-
-    while (<TEST>) {
-	if (/^\@/) {	     # testing header lines if they contain the @SO flag (for being sorted)
-	    if (/^\@SO/) {
-		warn "SAM header line '$_' indicates that the Bismark aligment file has been sorted by chromosomal positions. Paired-end files will be sorted by name before proceeding with the SNPsplit tagging process\n\n";
-		return 0;
-	    }
-	    next;
-	}
-	$count++;
-
-	last if ($count > 100000); # else we test the first 100000 sequences if they start with the same read ID
-
-	my ($id_1) = (split (/\t/));
-
-	### reading the next line which should be read 2
-	$_ = <TEST>;
-	my ($id_2) = (split (/\t/));
-	last unless ($id_2);
-	++$count;
-
-	if ($id_1 eq $id_2){
-	    ### ids are the same
-	    next;
-	}
-	else{ ### in previous versions of Bismark we appended /1 and /2 to the read IDs for easier eyeballing which read is which. These tags need to be removed first
-	    my $id_1_trunc = $id_1;
-	    $id_1_trunc =~ s/\/1$//;
-	    my $id_2_trunc = $id_2;
-	    $id_2_trunc =~ s/\/2$//;
-
-	    unless ($id_1_trunc eq $id_2_trunc){
-		warn "The IDs of Read 1 ($id_1) and Read 2 ($id_2) are not the same. This might be a result of sorting the paired-end SAM/BAM files by chromosomal position. Paired-end files will be sorted by name before proceeding with the SNPsplit tagging process\n\n";
-		return 0;
-	    }
-	}
-    }
-
-    ### If it hasn't returned so far then it seems the file is in the correct Bismark format (read 1 and read 2 of a pair directly following each other)
-    return 1;
-}
-
 sub calculate_single_strain_tallies{
 
 	%strain_tallies = (); # from this file only
@@ -2470,15 +2405,6 @@ VERSION
 	    $bisulfite++;
 	    if ($paired){
 			warn "File looks like a Bismark paired-end file. Setting '--bisulfite' and '--paired'...\n";
-
-			my ($skip_sorting_by_name) = test_positional_sorting($ARGV[0],$samtools_path);
-			if ($skip_sorting_by_name){
-		    	warn "File appears to be in the right format (Read1 and Read2 following each other), setting '--no_sort'...\n";
-		    	$no_sort = 1;
-			}
-			else{
-		    	warn "File needs sorting by name first (Read1 and Read2 are required to follow each other for SNPsplit processing)...\n";
-			}
 	    }
 	    else{
 			warn "File looks like a Bismark single-end file. Setting '--bisulfite'...\n";
