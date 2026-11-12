@@ -401,7 +401,7 @@ sub read_rSO_summary_report{
 	my ($summary_report,$doc) = @_;
 
 	warn "Processing reStrainingOrder summary report $summary_report ...\n";
-	open (SUMM,$summary_report) or die "Couldn't read from file $summary_report: $!\n\n";
+	open (SUMM,'<',$summary_report) or die "Couldn't read from file $summary_report: $!\n\n";
 
 	my $unique;
 	my $no_aln;
@@ -542,7 +542,7 @@ sub read_report_template{
     my $template = shift;
     my $doc;
     warn "Attempting to open file from: $RealBin/plotly/$template\n\n" if ($verbose);
-    open (DOC,"$RealBin/plotly/$template") or die "Failed to find file $template: $!";
+    open (DOC,'<',"$RealBin/plotly/$template") or die "Failed to find file $template: $!";
     while(<DOC>){
 		chomp;
 		$_ =~ s/\r//g;

@@ -6,8 +6,9 @@
 
 - Chromosomes are now processed in the order of the VCF header, so the genome preparation report is the same on every run. Addressed in [#16](https://github.com/FelixKrueger/reStrainingOrder/pull/16).
 - Chromosome 1 is now filtered under its UCSC name (`chr1`) too. Addressed in [#18](https://github.com/FelixKrueger/reStrainingOrder/pull/18).
-- A truncated VCF now stops the genome preparation instead of giving a partial matrix, and paths with spaces now work. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
-- Dropped the advice to disable soft-clipping, as soft-clipped reads are scored since #22. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
+- A truncated gzipped VCF now stops the genome preparation with an error, unless it was cut at a bgzip block boundary, which can not be detected. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
+- Paths with spaces or shell characters now work. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
+- Dropped the advice to disable soft-clipping, as soft-clipped reads are scored since [#22](https://github.com/FelixKrueger/reStrainingOrder/pull/22). Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
 
 ### reStrainingOrder
 
@@ -23,9 +24,9 @@
 - Blank lines in the SNP file are now skipped, and errors in it name the right line. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
 - Secondary and supplementary alignments are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
 - Reads at a SNP position that have no sequence or CIGAR, or whose sequence, CIGAR and MD tag disagree, are now skipped and counted in the report. Addressed in [#24](https://github.com/FelixKrueger/reStrainingOrder/pull/24).
-- A truncated BAM or SNP file now stops the run instead of being scored in part; a bgzip file cut at a block boundary, or a truncated SAM, can still not be detected. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
+- A truncated BAM file or gzipped SNP file now stops the run instead of being scored in part, except for a SNP file cut at a bgzip block boundary, which can not be detected. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
 - Paths with spaces or shell characters now work. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
-- SAM input is read directly and no longer leaves a `.bam` file next to it. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
+- SAM input is read directly and no longer leaves a `.bam` file next to it, though paired-end input still gets a `.sortedByName.bam` copy unless `--no_sorting` is given. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
 - The `--outdir` option from the help text now works, alongside `--output_dir` and `-o`. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
 - Reads that are a single match are now scored by the same MD-tag parser as all other reads, which also handles MD letters other than A, C, G and T. Addressed in [#27](https://github.com/FelixKrueger/reStrainingOrder/pull/27).
 

@@ -631,9 +631,13 @@ sub filter_relevant_SNP_calls_from_VCF{
 		close IN;
     }
     else{
-		close IN or die "Failed to read '$vcf_file' completely (exit status ",$? >> 8,"); the file may be truncated or corrupt\n";
+		unless (close IN){
+		    # gzip exits 2 for warnings such as trailing garbage, after the data was read in full
+		    die "Failed to read '$vcf_file' completely (",child_status(),"); the file may be truncated or corrupt\n" unless ($? >> 8 == 2 and !($? & 127));
+		    warn "gunzip gave a warning for '$vcf_file', but its data was read in full\n";
+		}
     }
-    close THEMATRIX or die "Failed to write '$matrix_file' (gzip exit status ",$? >> 8,")\n";
+    close THEMATRIX or die "Failed to write '$matrix_file' (gzip ",child_status(),")\n";
 
     # Writing a report file
     my $report = "reStrainingOrder_SNP_filtering_report.txt";
@@ -948,6 +952,14 @@ VERSION
 
 }
 
+
+
+# How a child process ended, from $?
+sub child_status{
+    return 'could not be run' if ($? == -1);
+    return 'killed by signal '.($? & 127) if ($? & 127);
+    return 'exit status '.($? >> 8);
+}
 
 sub print_helpfile{
   print <<EOF

@@ -103,9 +103,12 @@ while (@ARGV){
     warn "\n\n";
 
    
-    # samtools view exits 0 on a BAM cut at a block boundary, quickcheck does not
+    # quickcheck catches a BAM cut at a block boundary, which samtools view reads without an error
     if ($file =~ /\.bam$/){
-		system ($samtools_path,'quickcheck',$file) == 0 or die "'$file' failed samtools quickcheck (truncated or corrupt BAM file)\n";
+		unless (system ($samtools_path,'quickcheck',$file) == 0){
+			die "Could not run samtools at '$samtools_path'\n" if ($? == -1);
+			die "'$file' failed samtools quickcheck: it is truncated, corrupt, has no \@SQ header lines or lacks the BAM EOF marker\n";
+		}
     }
 
     ### Paired-end
@@ -223,7 +226,7 @@ sub collate_summary{
 
 	warn "\n\nFinishing up by collating all result files (writing to $summary_stats_file)...\n";
 
-	open (my $tmp,"${output_dir}$outfile") or die "Failed to read ${output_dir}$outfile: $!\n";
+	open (my $tmp,'<',"${output_dir}$outfile") or die "Failed to read ${output_dir}$outfile: $!\n";
 	print SUMMARY "STRAIN SCORES\n";
 	while (<$tmp>){
 		print SUMMARY;
@@ -233,7 +236,7 @@ sub collate_summary{
 	unless($skip_hybrid_detection){
 		print SUMMARY "\n";
 
-		open ($tmp,"${output_dir}$pairwise_hybrid_file") or die "Failed to read ${output_dir}$pairwise_hybrid_file: $!\n";
+		open ($tmp,'<',"${output_dir}$pairwise_hybrid_file") or die "Failed to read ${output_dir}$pairwise_hybrid_file: $!\n";
 		print SUMMARY "HYBRID SCORES\n";
 		while (<$tmp>){
 			print SUMMARY;
@@ -241,7 +244,7 @@ sub collate_summary{
 		close $tmp or warn $!;
 		print SUMMARY "\n";
 
-		open ($tmp,"${output_dir}$hybrid_scores_file") or die "Failed to read ${output_dir}$hybrid_scores_file: $!\n";
+		open ($tmp,'<',"${output_dir}$hybrid_scores_file") or die "Failed to read ${output_dir}$hybrid_scores_file: $!\n";
 		print SUMMARY "ALLELE RATIOS\n";
 		while (<$tmp>){
 			print SUMMARY;
@@ -258,7 +261,7 @@ sub process_masked_BAM_file{
 
     my ($file) = @_;
 
-    open (IN,'-|',$samtools_path,'view','-h',$file) or die "Failed to read from BAM file $file: $!\n";
+    open (IN,'-|',$samtools_path,'view','-h',$file) or die "Could not run samtools at '$samtools_path' on '$file': $!\n";
     warn "Reading from sorted mapping file '$file'\n";
 
     ### READING FROM MAPPING BAM FILE
@@ -404,7 +407,7 @@ sub process_masked_BAM_file{
 		#	print OUT;
 
     }
-    close IN or die "samtools view failed on '$file' (exit status ",$? >> 8,"); the file may be truncated or corrupt\n";
+    close IN or die "samtools view failed on '$file' (",child_status(),"); the file may be truncated or corrupt\n";
 
 
 
@@ -1066,7 +1069,7 @@ sub sort_by_name_paired_end{
     die "Could not derive a name for the name-sorted copy of '$file'\n" if ($sorted eq $file);
 
     warn "Sorting paired-end file '$file' by read IDs ...\n";
-    system ($samtools_path,'sort','-n','-o',$sorted,$file) == 0 or die "samtools sort failed on '$file' (exit status ",$? >> 8,")\n";
+    system ($samtools_path,'sort','-n','-o',$sorted,$file) == 0 or die "samtools sort failed on '$file' (",child_status(),")\n";
     $file = $sorted; # setting sorted BAM file as new $file
     warn "Finished sorting BAM file into new file '$file'\n\n";
     sleep (1);
@@ -1122,7 +1125,11 @@ sub read_snps{
 		
     }
 
-    close SNP or die "Failed to read '$snp_file' completely (exit status ",$? >> 8,"); the file may be truncated or corrupt\n";
+    unless (close SNP){
+		# gzip exits 2 for warnings such as trailing garbage, after the data was read in full
+		die "Failed to read '$snp_file' completely (",child_status(),"); the file may be truncated or corrupt\n" unless ($? >> 8 == 2 and !($? & 127));
+		warn "gunzip gave a warning for '$snp_file', but its data was read in full\n";
+    }
     warn "Stored $snp_count positions in total\n\n";
 	# like this we can move through  the file
 	#foreach my $chr(keys %snps){
@@ -1304,7 +1311,7 @@ sub check_for_bs{
 	open (DETERMINE,'-|','gunzip','-c',$file) or die "Unable to read from gzipped file $file: $!\n";
     }
     elsif ($file =~ /\.bam$/ ){
-	open (DETERMINE,'-|',$samtools_path,'view','-h',$file) or die "Unable to read from BAM file $file: $!\n";
+	open (DETERMINE,'-|',$samtools_path,'view','-h',$file) or die "Could not run samtools at '$samtools_path' on '$file': $!\n";
     }
     else{
 	open (DETERMINE,'<',$file) or die "Unable to read from $file: $!\n";
@@ -1350,7 +1357,7 @@ sub test_positional_sorting{
     }
     elsif ($filename =~ /bam$/){ ### this would allow to read BAM files that do not end in *.bam
 	if ($samtools_path){
-	    open (TEST,'-|',$samtools_path,'view','-h',$filename) or die "Can't open BAM file $filename: $!\n";
+	    open (TEST,'-|',$samtools_path,'view','-h',$filename) or die "Could not run samtools at '$samtools_path' on '$filename': $!\n";
 	}
 	else{
 	    die "Sorry couldn't find an installation of Samtools. Either specifiy an alternative path using the option '--samtools_path /your/path/', or use a SAM file instead\n\n";
@@ -1900,6 +1907,13 @@ VERSION
 }
 
 
+
+# How a child process ended, from $?
+sub child_status{
+    return 'could not be run' if ($? == -1);
+    return 'killed by signal '.($? & 127) if ($? & 127);
+    return 'exit status '.($? >> 8);
+}
 
 sub print_helpfile{
     print <<EOF
