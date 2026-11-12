@@ -187,7 +187,7 @@ Alignment files produced by the Spliced Transcripts Alignment to a Reference [(S
 
 **1)** reStrainingOrder requires the `MD:Z:` field of the BAM alignment to work out mismatches involving masked N positions. Since STAR doesn’t report the `MD:Z:` field by default it needs to be instructed to do so, e.g.: `--outSAMattributes NH HI NM MD`
 
-**2)** To save some time and avoid having to sort the reads by name, STAR can be told to leave R1 and R2 following each other in the BAM file using the option: `--outSAMtype BAM Unsorted`
+**2)** The reads can be in any order: paired-end files are not sorted by name.
 
 #### Alignments with BWA
 

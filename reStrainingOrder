@@ -56,10 +56,12 @@ foreach my $file (@ARGV){
     }
 }
 
+my ($user_paired,$user_bisulfite) = ($paired,$bisulfite); # each file is checked for what the user did not say
 while (@ARGV){
     my $file = shift @ARGV;
 
     warn "Now starting to process file <<< '$file' >>> \n\n";
+    ($paired,$bisulfite) = detect_input_type($file,$user_paired,$user_bisulfite);
     sleep (1);
 
     my ($outfile,$pairwise_hybrid_file,$hybrid_scores_file,$summary_stats_file) = open_output_filehandles($file);
@@ -113,13 +115,8 @@ while (@ARGV){
 
     ### Paired-end
     if ($paired){
-		unless ($no_sort){
-		    warn "File specified as unsorted paired-end BAM file\n";
-		    $file = sort_by_name_paired_end($file); # setting this as the new file
-		}
-		else{
-		    warn "File was specified to be sorted (i.e. Read 1 and Read 2 are following each other in the paired-end BAM file), thus skipping the sorting step\n\n";
-		}
+		# Every alignment is scored on its own, so Read 1 and Read 2 need not follow each other: no sorting by read name
+		warn "File specified as paired-end BAM file\n";
     }
     else{ ### single-end
 		warn "File specified as single-end BAM file\n";
@@ -294,7 +291,7 @@ sub process_masked_BAM_file{
 	    warn "Processed $count lines so far\n";
 	}
 
-	my ($id,$flag,$chr,$start,$cigar,$sequence)  = (split /\t/)[0,1,2,3,5,9];
+	my $flag = (split /\t/,$_,3)[1];
 
 	my ($genome1_count,$genome2_count,$ct_unassigned) = (0 , 0, 0); # will get filled below
 
@@ -314,6 +311,14 @@ sub process_masked_BAM_file{
 	unless ($md_tag){
 	    die "Failed to extract MD:Z tag from line:\n$_\n";
 	}
+
+	# Most alignments cover no N-masked position, and the flag and MD tag are all it takes to count those
+	unless ($md_tag =~ /N/){
+	    ++$non_N_containing;
+	    ++$unassigned;
+	    next;
+	}
+	my ($id,$chr,$start,$cigar,$sequence) = (split /\t/,$_,11)[0,2,3,5,9];
 
 	#  if ($verbose){
 	#  print $_;
@@ -1060,23 +1065,6 @@ sub score_bisulfite_SNPs{
 }
 
 
-sub sort_by_name_paired_end{
-
-    my $file = shift;
-
-    my $sorted = $file;
-    $sorted =~ s/\.(sam|bam)$/.sortedByName.bam/;
-    die "Could not derive a name for the name-sorted copy of '$file'\n" if ($sorted eq $file);
-
-    warn "Sorting paired-end file '$file' by read IDs ...\n";
-    system ($samtools_path,'sort','-n','-o',$sorted,$file) == 0 or die "samtools sort failed on '$file' (",child_status(),")\n";
-    $file = $sorted; # setting sorted BAM file as new $file
-    warn "Finished sorting BAM file into new file '$file'\n\n";
-    sleep (1);
-    return $file;
-
-}
-
 sub read_snps{
 
     if ($snp_file =~ /\.gz$/){
@@ -1297,14 +1285,30 @@ sub open_output_filehandles{
 ###   Bisfulfite Read Detection   #####
 #######################################
 
+# Whether this file is paired-end and Bismark bisulfite data: what the user said, or else what its @PG lines say
+sub detect_input_type{
+    my ($file,$user_paired,$user_bisulfite) = @_;
+    warn "Testing if input file '$file' looks like a Bisulfite-Seq file\n";
+    my ($isBismark,$paired_end) = check_for_bs($file,$user_paired,$samtools_path);
+    if ($isBismark){
+		if ($paired_end){
+			warn "File looks like a Bismark paired-end file. Setting '--bisulfite' and '--paired'...\n";
+		}
+		else{
+			warn "File looks like a Bismark single-end file. Setting '--bisulfite'...\n";
+		}
+    }
+    else{
+		warn "File looks like standard genomic file (aligned with e.g. Bowtie2 or HISAT2)\n";
+    }
+    return ($paired_end,($user_bisulfite or $isBismark) ? 1 : 0);
+}
+
 sub check_for_bs{
 
-    my ($paired_end,$samtools_path) = @_;
+    my ($file,$paired_end,$samtools_path) = @_;
     my $isBismark = 0; # set by any Bismark @PG line, as later tools (e.g. samtools sort) add @PG lines of their own
 
-    # SAM/BAM format, checking the first file supplied
-
-    my $file = $ARGV[0];
 
     ### if the user did not specify whether the alignment file was single-end or paired-end we are trying to get this information from the @PG header line in the SAM/BAM file
     if ($file =~ /\.gz$/){
@@ -1344,71 +1348,6 @@ sub check_for_bs{
     return ($isBismark,$paired_end);
 }
 
-
-sub test_positional_sorting{
-
-    my $filename = shift;
-    my $samtools_path = shift;
-    warn "\nNow testing Bismark result file $filename for positional sorting\n";
-    sleep(1);
-
-    if ($filename =~ /\.gz$/) {
-	open (TEST,'-|','gunzip','-c',$filename) or die "Can't open gzipped file $filename: $!\n";
-    }
-    elsif ($filename =~ /bam$/){ ### this would allow to read BAM files that do not end in *.bam
-	if ($samtools_path){
-	    open (TEST,'-|',$samtools_path,'view','-h',$filename) or die "Could not run samtools at '$samtools_path' on '$filename': $!\n";
-	}
-	else{
-	    die "Sorry couldn't find an installation of Samtools. Either specifiy an alternative path using the option '--samtools_path /your/path/', or use a SAM file instead\n\n";
-	}
-    }
-    else{
-	open (TEST,'<',$filename) or die "Can't open file $filename: $!\n";
-    }
-
-    my $count = 0;
-
-    while (<TEST>) {
-	if (/^\@/) {	     # testing header lines if they contain the @SO flag (for being sorted)
-	    if (/^\@SO/) {
-		warn "SAM header line '$_' indicates that the Bismark aligment file has been sorted by chromosomal positions. Paired-end files will be sorted by name before proceeding with the SNPsplit tagging process\n\n";
-		return 0;
-	    }
-	    next;
-	}
-	$count++;
-
-	last if ($count > 100000); # else we test the first 100000 sequences if they start with the same read ID
-
-	my ($id_1) = (split (/\t/));
-
-	### reading the next line which should be read 2
-	$_ = <TEST>;
-	my ($id_2) = (split (/\t/));
-	last unless ($id_2);
-	++$count;
-
-	if ($id_1 eq $id_2){
-	    ### ids are the same
-	    next;
-	}
-	else{ ### in previous versions of Bismark we appended /1 and /2 to the read IDs for easier eyeballing which read is which. These tags need to be removed first
-	    my $id_1_trunc = $id_1;
-	    $id_1_trunc =~ s/\/1$//;
-	    my $id_2_trunc = $id_2;
-	    $id_2_trunc =~ s/\/2$//;
-
-	    unless ($id_1_trunc eq $id_2_trunc){
-		warn "The IDs of Read 1 ($id_1) and Read 2 ($id_2) are not the same. This might be a result of sorting the paired-end SAM/BAM files by chromosomal position. Paired-end files will be sorted by name before proceeding with the SNPsplit tagging process\n\n";
-		return 0;
-	    }
-	}
-    }
-
-    ### If it hasn't returned so far then it seems the file is in the correct Bismark format (read 1 and read 2 of a pair directly following each other)
-    return 1;
-}
 
 sub calculate_single_strain_tallies{
 
@@ -1876,32 +1815,6 @@ VERSION
     else{
 		$bam = 1;
     }
-
-    ### Checking to see if the input file is a Bismark processed Bisulfite-Seq file
-
-	warn "Testing if input file '$ARGV[0]' looks like a Bisulfite-Seq file\n";
-	(my $isBismark,$paired) = check_for_bs($paired,$samtools_path);
-	if ($isBismark){
-	    $bisulfite++;
-	    if ($paired){
-			warn "File looks like a Bismark paired-end file. Setting '--bisulfite' and '--paired'...\n";
-
-			my ($skip_sorting_by_name) = test_positional_sorting($ARGV[0],$samtools_path);
-			if ($skip_sorting_by_name){
-		    	warn "File appears to be in the right format (Read1 and Read2 following each other), setting '--no_sort'...\n";
-		    	$no_sort = 1;
-			}
-			else{
-		    	warn "File needs sorting by name first (Read1 and Read2 are required to follow each other for SNPsplit processing)...\n";
-			}
-	    }
-	    else{
-			warn "File looks like a Bismark single-end file. Setting '--bisulfite'...\n";
-	    }
-	}
-	else{
-		warn "File looks like standard genomic file (aligned with e.g. Bowtie2 or HISAT2)\n";
-	}
 
     return ($snp_file,$no_sort,$verbose,$samtools_path,$bam,$paired,$conflict,$output_dir,$singletons,$bisulfite,$skip_hybrid_detection);
 }
