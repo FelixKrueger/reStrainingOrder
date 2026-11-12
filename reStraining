@@ -695,7 +695,7 @@ sub detect_chroms{
 	
 	if ($_ =~ /^\#\#contig/){ # filters header lines
 	    # warn "$_\n"; # sleep(1);
-	    $_ =~ /ID=(.+),/;
+	    next unless ($_ =~ /ID=([^,>]+)/); # the ID is followed by other fields, or ends the line
 	    my $chr = $1;
 	    # warn "Identified chromosome $chr\n";
 	    unless (exists $chrom{$chr}){
