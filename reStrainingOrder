@@ -103,11 +103,10 @@ while (@ARGV){
     warn "\n\n";
 
    
-    ### SAM TO BAM CONVERSION - if necessary
-    if ($file =~/\.sam$/){
-		$file = sam2bam_convert($file);
+    # samtools view exits 0 on a BAM cut at a block boundary, quickcheck does not
+    if ($file =~ /\.bam$/){
+		system ($samtools_path,'quickcheck',$file) == 0 or die "'$file' failed samtools quickcheck (truncated or corrupt BAM file)\n";
     }
-    # else it is a BAM file, which is fine
 
     ### Paired-end
     if ($paired){
@@ -259,7 +258,7 @@ sub process_masked_BAM_file{
 
     my ($file) = @_;
 
-    open (IN,"$samtools_path view -h $file |") or die "Failed to read from BAM file $file: $!\n";
+    open (IN,'-|',$samtools_path,'view','-h',$file) or die "Failed to read from BAM file $file: $!\n";
     warn "Reading from sorted mapping file '$file'\n";
 
     ### READING FROM MAPPING BAM FILE
@@ -405,6 +404,7 @@ sub process_masked_BAM_file{
 		#	print OUT;
 
     }
+    close IN or die "samtools view failed on '$file' (exit status ",$? >> 8,"); the file may be truncated or corrupt\n";
 
 
 
@@ -514,70 +514,10 @@ sub determine_N_position{
     my ($genome1,$genome2,$irrelevant,$ct_unassigned) = (0,0,0,0); # determining number of SNPs that can be used to assign a certain allele
 
     if ($verbose){ warn "Now looking at the following read:\n$chr\t$start\t$cigar\t$sequence\t$md_tag\n";sleep(1);}
-    # parsing CIGAR string
-    my @len = split (/\D+/,$cigar); # storing the length per operation
-    my @ops = split (/\d+/,$cigar); # storing the operation
-    shift @ops; # remove the empty first element
-    die "CIGAR string contained a non-matching number of lengths and operations\n" unless (scalar @len == scalar @ops);
-
-    my @ns = split /N/,$md_tag;
-
-    if (scalar @ops == 1 and $ops[0] eq 'M'){
-
-		if ($verbose){ warn "Read is a single contiguous match: $cigar\n"; sleep(1);}
-		# adjusting the read mapping position the SNP position
-
-		if ($verbose){
-			warn "MD-tag: $md_tag\n";
-			print join ("\t",@ns),"\n";
-		}
-
-		die "There were fewer than 2 elements in the MD tag $md_tag! number of elements: ",scalar @ns,"\n" if (scalar @ns < 2);
-		my $pos;
-
-		foreach my $index (0..($#ns-1)){ # the last index of @ns is the number of matching strings after the last N, so is not relevant
-
-			if ($ns[$index] =~/\D/){ # Element is a Non-Digit
-
-				if ($ns[$index] =~/\W/){
-					if ($verbose){ warn "Element contains a Non-Word character: $ns[$index]\n~~~~~~~~!!!\n"};
-				}
-
-				if ($verbose){ warn "element contains a Non-DIGIT: $ns[$index]\n"};
-				my @array = split /[ATCG]/,$ns[$index];
-				if ($verbose){ warn "Elements in the array: ",scalar @array,"\n"};
-
-				foreach my $element(@array){
-					if ($verbose){ warn "Adding $element to pos\n"};
-					$pos += $element;
-					if ($verbose){ warn "pos right now: $pos\n"};
-				}
-				if ($verbose){ warn "now adjusting for the number of elements in the array, adding ",(scalar @array-1),"\n"};
-				$pos += (scalar @array) - 1;
-				if ($verbose){ warn "pos right now: $pos\n\n"; sleep(1)};
-			}
-			else{ # element is a digit, so we can just add it to the position
-				if ($verbose){ warn "element is $ns[$index]\n"};
-				$pos += $ns[$index];
-				if ($verbose){ warn "Start: $start\tpos: $pos\n"; sleep(1);};
-			}
-
-			($genome1,$genome2,$irrelevant,$ct_unassigned) = score_snp_position($chr,$pos + $start,substr($sequence,$pos,1),$line,$genome1,$genome2,$irrelevant,$ct_unassigned);
-
-			if ($verbose) { warn "now adjusting the position for the N itself\n";}
-			$pos += 1; # adjusting position for the N itself. irrelevant if this is the last element of the array
-			if ($verbose) { warn "pos right now: $pos\n";}
-		}
-
-		if ($verbose) { warn "~~~~~~~~~~~~~~~~~~~~\n\n\n\n";}
-
-    }
-    else{ # any other CIGAR string: locate each N of the MD tag in the read and the genome
-		foreach my $offset (md_n_offsets($md_tag)){
-			my ($read_index,$genome_offset) = locate_md_offset($cigar,$offset);
-			next unless (defined $read_index); # the N was deleted, but such reads were already called conflicting
-			($genome1,$genome2,$irrelevant,$ct_unassigned) = score_snp_position($chr,$start + $genome_offset,substr($sequence,$read_index,1),$line,$genome1,$genome2,$irrelevant,$ct_unassigned);
-		}
+    foreach my $offset (md_n_offsets($md_tag)){
+		my ($read_index,$genome_offset) = locate_md_offset($cigar,$offset);
+		next unless (defined $read_index); # the N was deleted, but such reads were already called conflicting
+		($genome1,$genome2,$irrelevant,$ct_unassigned) = score_snp_position($chr,$start + $genome_offset,substr($sequence,$read_index,1),$line,$genome1,$genome2,$irrelevant,$ct_unassigned);
     }
 
     return ($genome1,$genome2,$ct_unassigned);
@@ -1117,35 +1057,16 @@ sub score_bisulfite_SNPs{
 }
 
 
-sub sam2bam_convert{
-
-    my $file = shift;
-
-    warn "File appears to be in SAM format and needs conversion into BAM format first\n";
-    sleep (3);
-    my $bamfile = $file;
-    $bamfile =~ s/sam$/bam/;
-    warn "Now converting '$file' to '$bamfile' ...\n";
-    sleep (3);
-
-    system ("$samtools_path view -bS $file > $bamfile");
-
-    warn "BAM conversion finished\n\n";
-    sleep (3);
-    return $bamfile;  # setting bamfile as new input file
-
-}
-
 sub sort_by_name_paired_end{
 
     my $file = shift;
 
     my $sorted = $file;
-    $sorted =~ s/bam$/sortedByName.bam/;
+    $sorted =~ s/\.(sam|bam)$/.sortedByName.bam/;
+    die "Could not derive a name for the name-sorted copy of '$file'\n" if ($sorted eq $file);
 
-    warn "Sorting paired-end BAM file '$file' by read IDs ...\n";
-    #   system ("$samtools_path sort -O BAM -n -o $sorted $file"); # added -O BAM on 13 Dec 2016
-    system ("$samtools_path sort -n -o $sorted $file");  # removed -O again because it doesn't seem to be working... 09 Jan 2017
+    warn "Sorting paired-end file '$file' by read IDs ...\n";
+    system ($samtools_path,'sort','-n','-o',$sorted,$file) == 0 or die "samtools sort failed on '$file' (exit status ",$? >> 8,")\n";
     $file = $sorted; # setting sorted BAM file as new $file
     warn "Finished sorting BAM file into new file '$file'\n\n";
     sleep (1);
@@ -1156,10 +1077,10 @@ sub sort_by_name_paired_end{
 sub read_snps{
 
     if ($snp_file =~ /\.gz$/){
-		open (SNP,"gunzip -c $snp_file |") or die "Failed to read from gzipped $snp_file: $!\n\n";
+		open (SNP,'-|','gunzip','-c',$snp_file) or die "Failed to read from gzipped $snp_file: $!\n\n";
     }
     else{
-		open (SNP,$snp_file) or die "Failed to read from $snp_file: $!\n\n";
+		open (SNP,'<',$snp_file) or die "Failed to read from $snp_file: $!\n\n";
     }
 
     ### READING FROM SNP FILE
@@ -1201,6 +1122,7 @@ sub read_snps{
 		
     }
 
+    close SNP or die "Failed to read '$snp_file' completely (exit status ",$? >> 8,"); the file may be truncated or corrupt\n";
     warn "Stored $snp_count positions in total\n\n";
 	# like this we can move through  the file
 	#foreach my $chr(keys %snps){
@@ -1379,13 +1301,13 @@ sub check_for_bs{
 
     ### if the user did not specify whether the alignment file was single-end or paired-end we are trying to get this information from the @PG header line in the SAM/BAM file
     if ($file =~ /\.gz$/){
-	open (DETERMINE,"gunzip -c $file |") or die "Unable to read from gzipped file $file: $!\n";
+	open (DETERMINE,'-|','gunzip','-c',$file) or die "Unable to read from gzipped file $file: $!\n";
     }
     elsif ($file =~ /\.bam$/ ){
-	open (DETERMINE,"$samtools_path view -h $file |") or die "Unable to read from BAM file $file: $!\n";
+	open (DETERMINE,'-|',$samtools_path,'view','-h',$file) or die "Unable to read from BAM file $file: $!\n";
     }
     else{
-	open (DETERMINE,$file) or die "Unable to read from $file: $!\n";
+	open (DETERMINE,'<',$file) or die "Unable to read from $file: $!\n";
     }
 
     while (<DETERMINE>){
@@ -1424,18 +1346,18 @@ sub test_positional_sorting{
     sleep(1);
 
     if ($filename =~ /\.gz$/) {
-	open (TEST,"gunzip -c $filename |") or die "Can't open gzipped file $filename: $!\n";
+	open (TEST,'-|','gunzip','-c',$filename) or die "Can't open gzipped file $filename: $!\n";
     }
     elsif ($filename =~ /bam$/){ ### this would allow to read BAM files that do not end in *.bam
 	if ($samtools_path){
-	    open (TEST,"$samtools_path view -h $filename |") or die "Can't open BAM file $filename: $!\n";
+	    open (TEST,'-|',$samtools_path,'view','-h',$filename) or die "Can't open BAM file $filename: $!\n";
 	}
 	else{
 	    die "Sorry couldn't find an installation of Samtools. Either specifiy an alternative path using the option '--samtools_path /your/path/', or use a SAM file instead\n\n";
 	}
     }
     else{
-	open (TEST,$filename) or die "Can't open file $filename: $!\n";
+	open (TEST,'<',$filename) or die "Can't open file $filename: $!\n";
     }
 
     my $count = 0;
@@ -1799,7 +1721,7 @@ sub process_commandline{
 
     my $command_line = GetOptions ('help|man'                => \$help,
 				   'versions'                => \$version,
-				   'output_dir=s'            => \$output_dir,
+				   'output_dir|outdir|o=s'   => \$output_dir,
 				   'SNP_file=s'              => \$snp_file,
 				   'no_sorting'              => \$no_sort,
 				   'verbose'                 => \$verbose,
@@ -2011,6 +1933,7 @@ sub print_helpfile{
     -o/--outdir <dir>      Write all output files into this directory. By default the output files will be written into
                            the same folder as the input file(s). If the specified folder does not exist, it will be
                            created first. The path to the output folder can be either relative or absolute.
+                           --output_dir is accepted as well.
 
   
     --bisulfite            Assumes Bisulfite-Seq data processed with Bismark (www.bioinformatics.babraham.ac.uk/projects/bismark/)
