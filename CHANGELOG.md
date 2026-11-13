@@ -10,7 +10,7 @@
 
 - Bisulfite and paired-end data are now detected for each input file, not only from the first one. Addressed in [#29](https://github.com/FelixKrueger/reStrainingOrder/pull/29).
 - Alignments that cover no N-masked position are now counted much faster, and paired-end files are no longer sorted by name, so no `.sortedByName.bam` copy is written. Addressed in [#31](https://github.com/FelixKrueger/reStrainingOrder/pull/31).
-- The option `--no_sorting` is still accepted but does nothing, and no longer refuses SAM input.
+- The option `--no_sorting` is still accepted but does nothing, and no longer refuses SAM input. Addressed in [#32](https://github.com/FelixKrueger/reStrainingOrder/pull/32).
 
 ## Changelog for version 0.5.0 [release on 12 November 2026]
 
