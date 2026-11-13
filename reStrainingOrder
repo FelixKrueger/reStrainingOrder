@@ -259,7 +259,7 @@ sub process_masked_BAM_file{
     my ($file) = @_;
 
     open (IN,'-|',$samtools_path,'view','-h',$file) or die "Could not run samtools at '$samtools_path' on '$file': $!\n";
-    warn "Reading from sorted mapping file '$file'\n";
+    warn "Reading from mapping file '$file'\n";
 
     ### READING FROM MAPPING BAM FILE
 
@@ -327,80 +327,71 @@ sub process_masked_BAM_file{
 
 	my ($XX_tag); # allele-specificity flag
 
-	if ($md_tag =~ /N/){  # skipping these reads for now, may or may not contain additional deletions before the N
+	my $n_dels = 0;
+	while ($md_tag =~ /\^\D*N\D*\d+/g){ # looking for the number of deletions of the N-SNP position in the read
+	    ++$n_dels;
+	}
 
-	    my $n_dels = 0;
-	    while ($md_tag =~ /\^\D*N\D*\d+/g){ # looking for the number of deletions of the N-SNP position in the read
-		++$n_dels;
-	    }
-
-	    if ($n_dels == 1){
-			++$contained_N_deletion;
-			++$bizarre;
-			$XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
-			# print $_;
-		}
-	    elsif($n_dels > 1){
-			++$contained_N_deletion;
-			++$multi_N_deletion;
-			++$bizarre;
-			# warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
-			# print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
-			$XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
-			# print $_;
-	    }
-	    else{ # no deletion of the N position itself
-		++$count_N_containing;
-		my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
-		unless ($consistent){
-		    warn "Skipping read $id ($why); further malformed reads in this file are skipped without a warning\n" unless ($malformed);
-		    ++$malformed;
-		    next;
-		}
-		### Determine whether the N was a known SNP and whether we can assign an allele
-		($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
-		# print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
-		if ($genome1_count > 0 and $genome2_count > 0){
+	if ($n_dels == 1){
+		    ++$contained_N_deletion;
 		    ++$bizarre;
-		    $XX_tag = 'XX:Z:CF'; #  read contained one or more SNPs for both genomes -> dodgy
-		}
-		elsif ($genome1_count > $genome2_count){
-		    $genome1++;
-		    $XX_tag = 'XX:Z:G1'; # genome 1 specific
-		}
-		elsif($genome2_count > $genome1_count){
-		    $genome2++;
-		     $XX_tag = 'XX:Z:G2'; # genome 2 specific
-		}
-		elsif($genome1_count == 0 and $genome2_count == 0){
-		    # read came back without any assigned number, e.g. the SNP position contained a base different to either genome. The read is thus unassignable
-		    if ($bisulfite){
-				# for bisulfite reads this may have happened because of C>T SNPs
-				if ($ct_unassigned > 0){
-				    # we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
-				    ++$unassigned_but_ct;
-				}
-				else{
-				    ++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
-				}
-		    }
-		    else{
-				++$no_snp;
-			}
-		    $XX_tag = 'XX:Z:UA'; # unassignable read
-		    ++$unassigned;
+		    $XX_tag = 'XX:Z:CF';     # Reads where the N was deleted are 'conflicting'
+		    # print $_;
+	    }
+	elsif($n_dels > 1){
+		    ++$contained_N_deletion;
+		    ++$multi_N_deletion;
+		    ++$bizarre;
+		    # warn "Read contained more than 1 deleted N position. MD-tag: $md_tag\n";
+		    # print join ("\t",$id,$flag,$chr,$start,$cigar,$sequence,$md_tag),"\n";
+		    $XX_tag = 'XX:Z:CF';     # calling this situation 'conflicting' for the time being
+		    # print $_;
+	}
+	else{ # no deletion of the N position itself
+	    ++$count_N_containing;
+	    my ($consistent,$why) = read_is_consistent($cigar,$md_tag,$sequence);
+	    unless ($consistent){
+		warn "Skipping read $id ($why); further malformed reads in this file are skipped without a warning\n" unless ($malformed);
+		++$malformed;
+		next;
+	    }
+	    ### Determine whether the N was a known SNP and whether we can assign an allele
+	    ($genome1_count,$genome2_count,$ct_unassigned,my $detected_strain) = determine_N_position ($chr,$start,$cigar,$sequence,$md_tag,$_);
+	    # print join ("\t",$genome1_count,$genome2_count,$ct_unassigned,$detected_strain),"\n"; sleep(1);
+	    if ($genome1_count > 0 and $genome2_count > 0){
+		++$bizarre;
+		$XX_tag = 'XX:Z:CF'; #  read contained one or more SNPs for both genomes -> dodgy
+	    }
+	    elsif ($genome1_count > $genome2_count){
+		$genome1++;
+		$XX_tag = 'XX:Z:G1'; # genome 1 specific
+	    }
+	    elsif($genome2_count > $genome1_count){
+		$genome2++;
+		 $XX_tag = 'XX:Z:G2'; # genome 2 specific
+	    }
+	    elsif($genome1_count == 0 and $genome2_count == 0){
+		# read came back without any assigned number, e.g. the SNP position contained a base different to either genome. The read is thus unassignable
+		if ($bisulfite){
+			    # for bisulfite reads this may have happened because of C>T SNPs
+			    if ($ct_unassigned > 0){
+				# we will not score this read as having an unexpected base at the SNP position, but as unassignable because of C>T SNps
+				++$unassigned_but_ct;
+			    }
+			    else{
+				++$no_snp; # here the base must have been different to ref and SNP, and not involve a C/T of either of them
+			    }
 		}
 		else{
-		    warn "g1: $genome1_count\ng2: $genome2_count\n";
-		    die "The read could not be assigned an XX-tag\n\n";
-		}
+			    ++$no_snp;
+		    }
+		$XX_tag = 'XX:Z:UA'; # unassignable read
+		++$unassigned;
 	    }
-	}
-	else{
-	    ++$non_N_containing;
-	    ### Read did not cover a SNP position and is by definition unassignable
-	    $XX_tag = 'XX:Z:UA'; # unassignable read
-	    ++$unassigned;
+	    else{
+		warn "g1: $genome1_count\ng2: $genome2_count\n";
+		die "The read could not be assigned an XX-tag\n\n";
+	    }
 	}
 
 	unless ($XX_tag){
@@ -1718,12 +1709,6 @@ VERSION
 
     unless ($snp_file){
 		die "You need to provide a matrix file detailing SNPs on chromosome 1 with e.g. '--SNP_file MGPv8_SNP_matrix_chr1.txt.gz'. Please respecify!\n";
-    }
-
-    if ($no_sort){
-		foreach my $file (@ARGV){
-			die "The option --no_sorting requires you to supply a BAM file (ending in .bam), but at least one of the file names did not look like a BAM file: '$file'. Please respecify!\n\n" unless ($file =~ /\.bam$/);
-		}
     }
 
     ### checking to see if all files are indeed present in the folder

@@ -1,5 +1,18 @@
 # reStrainingOrder Changelog
 
+## Changelog for version 0.5.1 [unreleased]
+
+### reStraining
+
+- VCF contig lines with further fields after the ID, as GATK writes them, no longer stop the genome preparation. Addressed in [#30](https://github.com/FelixKrueger/reStrainingOrder/pull/30).
+- A contig ID is now only read where it starts a field, so a field such as `assemblyID=` before it is no longer mistaken for it. Addressed in [#32](https://github.com/FelixKrueger/reStrainingOrder/pull/32).
+
+### reStrainingOrder
+
+- Bisulfite and paired-end data are now detected for each input file, not only from the first one. Addressed in [#29](https://github.com/FelixKrueger/reStrainingOrder/pull/29), merged as part of [#31](https://github.com/FelixKrueger/reStrainingOrder/pull/31).
+- Alignments that cover no N-masked position are now counted much faster, and paired-end files are no longer sorted by name, so no `.sortedByName.bam` copy is written. Addressed in [#31](https://github.com/FelixKrueger/reStrainingOrder/pull/31).
+- The option `--no_sorting` is still accepted but does nothing, and no longer refuses SAM input. Addressed in [#32](https://github.com/FelixKrueger/reStrainingOrder/pull/32).
+
 ## Changelog for version 0.5.0 [release on 12 November 2026]
 
 Bug fixes from a review of all three tools, much faster and leaner strain and hybrid detection, and stricter handling of malformed input.
