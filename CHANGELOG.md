@@ -6,6 +6,8 @@
 
 - VCF contig lines with further fields after the ID, as GATK writes them, no longer stop the genome preparation. Addressed in [#30](https://github.com/FelixKrueger/reStrainingOrder/pull/30).
 - A contig ID is now only read where it starts a field, so a field such as `assemblyID=` before it is no longer mistaken for it. Addressed in [#32](https://github.com/FelixKrueger/reStrainingOrder/pull/32).
+- Reference sequences that the VCF does not name, such as chrY and chrMT with the v8 VCF, are now written to the N-masked genome unchanged. Addressed in [#PRNUM](https://github.com/FelixKrueger/reStrainingOrder/pull/PRNUM).
+- A VCF without `##contig` lines now stops the genome preparation with an error. Addressed in [#PRNUM](https://github.com/FelixKrueger/reStrainingOrder/pull/PRNUM).
 
 ### reStrainingOrder
 

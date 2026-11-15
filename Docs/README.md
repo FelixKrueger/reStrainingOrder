@@ -78,6 +78,7 @@ reStraining --vcf mgp_REL2021_snps.vcf.gz --reference Genomes/Mouse/GRCm39/
 
 This command:
  * creates a folder for the new N-masked genome
+ * copies every sequence in the reference folder that the VCF does not name into that folder unchanged (with the v8 VCF: chrY, chrMT and any scaffolds, but also any other FastA file in the reference folder)
  * produces a high confidence SNP matrix for chromosome 1
  * creates a folder to store the SNP information per chromosome
  * generates a SNP filtering and genome preparation report
@@ -140,20 +141,20 @@ These files are intended for record keeping purposes.
 
 This is again a one-off process.
 
-Here are sample commands for some popular aligners using 4 cores each (just copy-paste). Depending on your resources this process may take up to a few hours.
+Here are sample commands for some popular aligners using 4 cores each (just copy-paste). The commands index every FastA file in `MGP_strains_N-masked`, so remove any left over from an earlier run first. Depending on your resources this process may take up to a few hours.
 
 **Bowtie2:**
 ```
-bowtie2-build --threads 4 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+(cd MGP_strains_N-masked && bowtie2-build --threads 4 $(printf '%s\n' *.N-masked.fa | paste -sd, -) MGP.N-masked)
 ```
 **HISAT2:**
 ```
-hisat2-build --threads 4 chr10.N-masked.fa,chr11.N-masked.fa,chr12.N-masked.fa,chr13.N-masked.fa,chr14.N-masked.fa,chr15.N-masked.fa,chr16.N-masked.fa,chr17.N-masked.fa,chr18.N-masked.fa,chr19.N-masked.fa,chr1.N-masked.fa,chr2.N-masked.fa,chr3.N-masked.fa,chr4.N-masked.fa,chr5.N-masked.fa,chr6.N-masked.fa,chr7.N-masked.fa,chr8.N-masked.fa,chr9.N-masked.fa,chrMT.N-masked.fa,chrX.N-masked.fa,chrY.N-masked.fa MGP.N-masked
+(cd MGP_strains_N-masked && hisat2-build --threads 4 $(printf '%s\n' *.N-masked.fa | paste -sd, -) MGP.N-masked)
 ```
 
 **Bismark:**
 ```
-bismark_genome_preparation --verbose --parallel 2 .
+bismark_genome_preparation --verbose --parallel 2 MGP_strains_N-masked
 ```
 
 ## Step II - Alignments to the MGP genome
