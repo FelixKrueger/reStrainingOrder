@@ -61,7 +61,7 @@ We would like to hear your comments or suggestions! Please e-mail [me here](mail
 
 This is a one-off process.
 
-`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from [The Mouse Genomes Project](https://www.mousegenomes.org/). It now assumes the GRCm39 mouse genome build by default, and uses the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)); the previous version v5 (`mgp.v5.merged.snps_all.dbSNP142.vcf.gz`) is no longer supported. `reStraining` generates a new genome version where all positions found as a SNP in any of the strains (currently >50 different ones) are masked by the ambiguity nucleobase `N` (**N-masking**). The entire process of filtering through ~80 million SNP positions and preparing the N-masked genome typically takes a few hours and requires some 6GB of memory.
+`reStraining` is designed to read in a variant call file from the Mouse Genomes Project (download e.g. from [The Mouse Genomes Project](https://www.mousegenomes.org/). It now assumes the GRCm39 mouse genome build by default, and uses the latest SNP annotation file (v8: [mgp_REL2021_snps.vcf.gz](https://ftp.ebi.ac.uk/pub/databases/mousegenomes/REL-2112-v8-SNPs_Indels/mgp_REL2021_snps.vcf.gz)); the previous version v5 (`mgp.v5.merged.snps_all.dbSNP142.vcf.gz`) is no longer supported. `reStraining` generates a new genome version in which every high-confidence SNP position on chromosome 1, from any of the strains (currently 52), is masked by the ambiguity nucleobase `N` (**N-masking**). The other chromosomes are written out unchanged, as reStrainingOrder only scores chromosome 1. With the v8 VCF this masks about 5.7 million positions and takes about 5 minutes and 5 GB of memory.
 
 If you don't have the mouse genome files already, you can download them from Ensembl, e.g. with a command like this:
 
@@ -77,10 +77,10 @@ reStraining --vcf mgp_REL2021_snps.vcf.gz --reference Genomes/Mouse/GRCm39/
 
 
 This command:
- * creates a folder for the new N-masked genome
+ * creates a folder for the new genome, with chromosome 1 N-masked and the other chromosomes unchanged
  * copies every sequence in the reference folder that the VCF does not name into that folder unchanged (with the v8 VCF: chrY, chrMT and any scaffolds, but also any other FastA file in the reference folder)
  * produces a high confidence SNP matrix for chromosome 1
- * creates a folder to store the SNP information per chromosome
+ * creates a folder to store the chromosome 1 SNPs used for N-masking
  * generates a SNP filtering and genome preparation report
 
 **N-masked genome folder**
@@ -101,7 +101,7 @@ Chromosome	Position	REF	ALT	129P2_OlaHsd	129S1_SvImJ	129S5SvEvBrd	A_J	AKR_J	B10.
 ```
 A score of 0 for a strain indicates that a given strain has the `REF` base at this position, a call of 1 means that it contains the `ALT` base with high confidence. This matrix file is used as input for the SNP scoring process (reStrainingOrder, [see below](#step-III---scoring-snps) ). 
 
-The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory one could use any other chromosome as well (or even the whole genome, but with 70M positions this would be challenging...!). This is the SNP filtering summary:
+The matrix is written out for a single chromosome only to use less memory in the scoring process. In theory any other chromosome (or even the whole genome) could be used, but `reStraining` currently filters and N-masks chromosome 1 only. This is the SNP filtering summary:
 
 ```
 SNP position summary for all MGP strains (based on mouse genome build GRCm39)
@@ -116,18 +116,11 @@ Positions printed to THE MATRIX in total:	5,665,777
 
 **Please note:** that only positions that have a single `REF/ALT` genotype were considered (i.e. positions with several ALT positions for different strains (e.g. `REF: A`, `ALT: C,T`) were skipped for simplicity. Also, positions where the reference sequence did not have a DNA base or positions with no high confidence SNP call in any of the strains were skipped entirely. 
 
-In total, the chr1 matrix file contains ~5.6 million positions that were of high quality in one or more strains.
+In total, the chr1 matrix file contains ~5.7 million positions that were of high quality in one or more strains.
 
 **SNP folder**
 
-The folder `SNPs_directory` stores files containing SNPs per chromosome. The files are in this format (similar to the chr1 matrix file but without header, shown here for chr11):
-
-```
->11
-11	3100106	G	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
-11	3100127	A	C	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
-11	3100380	C	A	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
-```
+The folder `SNPs_directory` holds one file per chromosome named in the VCF, but only `chr1.txt` contains SNPs: the same rows as the chr1 matrix, under a `>1` header line. The other files hold only their header line.
 
 If you have no further use for these files they may be deleted afterwards to save disk space (they were used for the N-masking process and have already served their purpose).
 
@@ -163,7 +156,7 @@ Here I will only briefly mention a few aspects that affect the alignment step (i
 
 - Reads should be adapter- and quality-trimmed before aligning them to the `MGP.N-masked` genome. As we are scoring single bp matches/mismatches later on, sequences should be of good quality. To avoid a "garbage-in-garbage-out" scenario, a single run through [Trim Galore](https://github.com/FelixKrueger/TrimGalore) or similar tool should suffice.
 
-- Alignments to N-masked genomes take (considerably) longer than to their un-masked counterparts. In the interest of time, it might thus be advisable to use only a subset of the original input FastQ file(s). We have run tests with files down-sampled to 10, 5 or 2 million reads, which all arrived at the same answer. Keep in mind though that reStrainingOrder only assays chromosome 1 which is ~7% of the entire mouse genome. Example: if you started from say merely 1 million reads, only a few (ten-)thousand of them might eventually end up aligning to chromosome 1, and out of those you would then only look at the ones covering N-masked positions... I think our suggestion would be: down-sampling: yes, but not not too far down (maybe 5-20M as a rough guideline?).
+- To save time, it may be advisable to use only a subset of the original input FastQ file(s). We have run tests with files down-sampled to 10, 5 or 2 million reads, which all arrived at the same answer. Keep in mind though that reStrainingOrder only assays chromosome 1 which is ~7% of the entire mouse genome. Example: if you started from say merely 1 million reads, only a few (ten-)thousand of them might eventually end up aligning to chromosome 1, and out of those you would then only look at the ones covering N-masked positions... I think our suggestion would be: down-sampling: yes, but not not too far down (maybe 5-20M as a rough guideline?).
 
 - The aligner you wish to employ needs to be capable of aligning to genomes containing `N` nucleotides. This has already been documented for [SNPsplit here](https://github.com/FelixKrueger/SNPsplit/blob/master/SNPsplit_User_Guide.md#specific-considerations-for-more-specialised-applications-or-software), but I will quickly list the most important points again here.
 
