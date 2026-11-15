@@ -8,7 +8,7 @@
 - A contig ID is now only read where it starts a field, so a field such as `assemblyID=` before it is no longer mistaken for it. Addressed in [#32](https://github.com/FelixKrueger/reStrainingOrder/pull/32).
 - Reference sequences that the VCF does not name, such as chrY and chrMT with the v8 VCF, are now written to the N-masked genome unchanged. Addressed in [#33](https://github.com/FelixKrueger/reStrainingOrder/pull/33).
 - A VCF without `##contig` IDs now stops the genome preparation with an error. Addressed in [#33](https://github.com/FelixKrueger/reStrainingOrder/pull/33).
-- The docs and `--help` now say that only chromosome 1 is N-masked. Addressed in [#PRNUM](https://github.com/FelixKrueger/reStrainingOrder/pull/PRNUM).
+- The docs and `--help` now say that only chromosome 1 is N-masked. Addressed in [#34](https://github.com/FelixKrueger/reStrainingOrder/pull/34).
 
 ### reStrainingOrder
 
