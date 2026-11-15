@@ -23,7 +23,7 @@ use Cwd;
 
 
 ### This script filters the latest VCF file for various SNPs versus the GRCm39
-### mouse genome build and writes high confidence SNPs into a folder called 'SNPs_Sanger';
+### mouse genome build and writes high confidence chr1 SNPs into a folder called 'SNPs_directory';
 ### it then creates a new genome called MGP_strains_N-masked.
 
 ### It has been tested with the latest version of the SNP file 'mgp_REL2021_snps.vcf.gz'
@@ -988,7 +988,8 @@ sub print_helpfile{
 
 reStraining is designed to read in a variant call file from the Mouse Genomes Project (e.g. this latest
 file: 'mgp_REL2021_snps.vcf.gz') and generate a new multi-strain genome version where all high-confidence
-SNPs in any of the deeply sequenced straind (currently ~51) are masked by the ambiguity nucleobase 'N' (N-masking).
+SNPs on chromosome 1 in any of the deeply sequenced strains (currently 52) are masked by the ambiguity nucleobase
+'N' (N-masking).
 
 The resulting .fa files are ready to be indexed with your favourite aligner. Proved and tested aligners include Bowtie2,
 STAR, HISAT2 and Bismark.
@@ -1005,8 +1006,8 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
                               (https://www.mousegenomes.org/). The file used and approved for genome build GRCm39 is 
                               called 'mgp_REL2021_snps.vcf.gz'. Please note that future versions of this file or entirely
                               different VCF files might not work out-of-the-box but may require some tweaking.
-                              SNP calls are read from the VCF files, and high confidence SNPs are written into
-                              a folder in the current working directory called SNPs_directory/chr<chromosome>.txt,
+                              SNP calls are read from the VCF file, and high confidence SNPs on chromosome 1 are
+                              written to SNPs_directory/chr1.txt in the current working directory,
                               in the following format:
 
                               Chromosome  Position   REF   ALT   [0 or 1 for each strain]
@@ -1031,7 +1032,7 @@ https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md#runn
 --version                     Displays version information and exits.
 
 
-                                                             Last modified: 11 04 2023
+                                                             Last modified: 15 11 2026
 
 EOF
     ;

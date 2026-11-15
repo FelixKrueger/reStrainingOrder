@@ -1820,9 +1820,9 @@ sub print_helpfile{
 
 	reStrainingOrder is designed to read in alignment files in BAM format and determine the genetic origin of reads
 	that cover known SNP positions. For this to work the alignment step must have been carried out against a multi-
-	strain mouse genome that had all SNP positions replaced by Ns (N-masking), in a process carried out by the 'reStraining'
-	genome preparation. A matrix of all relevant SNP positions on chromosome 1 also needs to be provided using the option
-	--snp_file.
+	strain mouse genome that had all SNP positions on chromosome 1 replaced by Ns (N-masking), in a process carried
+	out by the 'reStraining' genome preparation. A matrix of all relevant SNP positions on chromosome 1 also needs to
+	be provided using the option --snp_file.
 
 	For more information on the workflow and file formats, please see the User Guide documentation here:
     	https://github.com/FelixKrueger/reStrainingOrder/blob/master/Docs/README.md
