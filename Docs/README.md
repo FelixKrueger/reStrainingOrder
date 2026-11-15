@@ -4,7 +4,7 @@
 
 # reStrainingOrder - Mouse Strain Identification
 
-## User Guide - v0.5.0
+## User Guide - v0.5.1
 
 This User Guide outlines how reStrainingOrder works and gives details for each step.
 
