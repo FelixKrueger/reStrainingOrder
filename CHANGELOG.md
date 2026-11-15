@@ -1,6 +1,8 @@
 # reStrainingOrder Changelog
 
-## Changelog for version 0.5.1 [unreleased]
+## Changelog for version 0.5.1 [release on 15 November 2026]
+
+Per-file detection of bisulfite and paired-end data, faster counting of alignments that cover no N-masked position, support for VCF contig lines as GATK writes them, and chrY, chrMT and scaffolds now written to the N-masked genome.
 
 ### reStraining
 
