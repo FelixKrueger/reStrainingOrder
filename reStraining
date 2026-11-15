@@ -64,6 +64,7 @@ if ($v7){
 ### Dealing with chromosomes - At the moment we are trying to limit the analysis on chromosome 1 [mainly for time and memory reasons]
 #my @chroms = (1); # this is to just use chromosome 1 
 my @chroms = detect_chroms(); # this alternate method will detect all chromosomes from the VCF header and use those instead.
+die "No ##contig IDs found in the VCF header of '$vcf_file'; cannot tell which chromosomes to N-mask\n" unless (@chroms);
 
 print "Using the following chromosome(s):\t";
 # print "Using the following chromosomes (detected from VCF file >>$vcf_file<<):\n";
@@ -91,6 +92,25 @@ open (REPORT,'>',$report) or die "Failed to write to file $report: $!\n";
 
 for my $chr (@chroms) {
     create_modified_chromosome($chr);
+}
+
+# Reference sequences the VCF does not name are written out unchanged
+my %in_vcf = map { $_ => 1 } @chroms;
+my @unchanged;
+foreach my $chr (grep { !$in_vcf{$_} } sort keys %chromosomes){
+    unless (length $chromosomes{$chr}){
+	warn "Skipping reference sequence '$chr', which is empty\n";
+	next;
+    }
+    write_SNP_chromosome($chr,$chromosomes{$chr},1);
+    push @unchanged, $chr;
+}
+if (@unchanged){
+    my $line = @unchanged == 1
+	? "1 reference sequence is not in the VCF and was written out unchanged: $unchanged[0]\n"
+	: scalar(@unchanged)." reference sequences are not in the VCF and were written out unchanged: ".join(', ',@unchanged)."\n";
+    warn "\n$line";
+    print REPORT "\n$line";
 }
 
 if ($nmasking){
